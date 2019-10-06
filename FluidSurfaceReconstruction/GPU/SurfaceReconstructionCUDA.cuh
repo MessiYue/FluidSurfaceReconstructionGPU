@@ -12,6 +12,14 @@
 extern "C" __constant__ float EPSILON_;
 const float EPSILON_CPU = 1.0e-7;
 
+//! func: bind auxiliary textures for marching cubes.
+extern "C"
+void bindTextures(
+	uint* d_edgeTable,									// table of cube edges.
+	int* d_edgeIndicesOfTriangleTable,					// table of cube edges' indices.
+	uint* d_numVerticesTable,							// table of triangle vertices.
+	uint* d_vertexIndicesOfEdgeTable);					// table of edge vertices' indices.
+
 //! func: estimation of surface vertices
 extern "C"
 void launchEstimateSurfaceVertices(
@@ -58,14 +66,6 @@ void launchUpdateScalarGridValuesCompacted(
 	GridInfo spatialGridInfo,							// spatial hashing grid information.
 	GridInfo scalarGridInfo,							// scalar field grid information.
 	SimParam params);							
-
-//! func: 
-extern "C" 
-void bindTextures(
-	uint* d_edgeTable,									// table of cube edges.
-	int* d_edgeIndicesOfTriangleTable,					// table of cube edges' indices.
-	uint* d_numVerticesTable,							// table of triangle vertices.
-	uint* d_vertexIndicesOfEdgeTable);					// table of edge vertices' indices.
 
 //! func: detect valid surface cubes.
 extern "C" 
@@ -114,67 +114,6 @@ launchSpatialGridBuilding(
 	DensityGrid *densityGrid,							// virtual density grid.
 	GridInfo spatialGridInfo);							// spatial hashing grid information.
 
-
-//! ------------------------------------Our method-----------------------------------------------------
-
-//! Surface vertices estimation of MC grid. 
-struct EstSfVer2016
-{
-	// Spatial hashing grid for particles' neighborhood search.
-	IntGrid parStartInCellGrid;
-	IntGrid parCountInCellGrid;
-	UintGrid parIndexArray;
-
-	//! particles' density.
-	FloatGrid parDenArray;
-
-	//! is surface vertex.
-	UintGrid isSfGrid;
-
-	//! ???.
-	uint scSearchExt;
-};
-
-struct UpdateScGridV2016
-{
-	//! compacted surface vertices' indices.
-	UintGrid sfVerIdxScArray;
-
-	//! spatial hashing grid for particles' neighborhood search.
-	IntGrid parStartInCellGrid;
-	IntGrid parCountInCellGrid;
-	UintGrid parIndexArray;
-	Float3Grid parPosArray;
-
-	// scalar field grid.
-	VertexGrid verGrid;
-
-	//! sptial hasing grid information.
-	GridInfo spGridInfo;
-	//! mc grid information.
-	GridInfo scGridInfo;
-	//! number of surface vertices.
-	uint numSfVer;
-};
-
-extern "C" 
-void launchEstimateSurfaceVertices2016(
-	dim3 gridDim,
-	dim3 blockDim,
-	EstSfVer2016 param);
-
-extern "C" 
-void launchUpdateScalarGridValuesCompacted2016(
-	dim3 gridDim_,
-	dim3 blockDim_,
-	UpdateScGridV2016 param);
-
-extern "C" 
-void launchUpdateScalarGridValuesCompacted2016ZB05(
-	dim3 gridDim_,
-	dim3 blockDim_, 
-	UpdateScGridV2016 param);
-
 //! ------------------------------------------Common---------------------------------------------
 
 inline __host__ __device__ 
@@ -194,9 +133,9 @@ uint3 index1DTo3D(uint index1, uint3 res)
 }
 
 inline __host__ __device__ 
-uint3 getIndex3D(float3 pos, float3 gridMinPos, float cellSize)
+int3 getIndex3D(float3 pos, float3 gridMinPos, float cellSize)
 {
-	return make_uint3((pos - gridMinPos) / cellSize);
+	return make_int3((pos - gridMinPos) / cellSize);
 }
 
 inline __host__ __device__ 

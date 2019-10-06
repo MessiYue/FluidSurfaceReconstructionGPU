@@ -6,18 +6,15 @@ void initSimParam(SimParam *params)
 	cudaDeviceSynchronize();
 }
 
-void ThrustExclusiveScan(uint *output, uint *input, uint numElements)
+uint ThrustExclusiveScanWrapper(uint* output, uint* input, uint numElements)
 {
+	//! exclusive prefix sum.
 	thrust::exclusive_scan(
 		thrust::device_ptr<uint>(input),
 		thrust::device_ptr<uint>(input + numElements),
 		thrust::device_ptr<uint>(output));
-}
-
-uint ThrustExclusiveScanWrapper(uint* output, uint* input, uint numElements)
-{
-	ThrustExclusiveScan(output, input, numElements);
 	cudaDeviceSynchronize();
+
 	uint lastElement = 0;
 	uint lastElementScan = 0;
 	checkCudaErrors(cudaMemcpy((void *)&lastElement, (void *)(input + numElements - 1), 

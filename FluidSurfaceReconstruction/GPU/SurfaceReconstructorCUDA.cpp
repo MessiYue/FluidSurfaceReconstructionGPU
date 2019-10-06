@@ -50,7 +50,7 @@ void SurfaceReconstructorCUDA::onInitialize(const std::string &path)
 	//! read particles from given file.
 	std::vector<SimpleParticle> particles;
 	particles = Utils::readParticlesFromXYZ(path, &mSpGridInfo, mSimParam.particleRadius);
-	mScGridInfo.cellSize = mSpGridInfo.cellSize * 1.0;
+	mScGridInfo.cellSize = mSpGridInfo.cellSize * 0.125;
 	mScGridInfo.minPos = mSpGridInfo.minPos;
 	mScGridInfo.maxPos = mSpGridInfo.maxPos;
 	mScGridInfo.resolution = make_uint3(
@@ -61,7 +61,8 @@ void SurfaceReconstructorCUDA::onInitialize(const std::string &path)
 	//! initialization of simulation parameters.
 	mSimParam.effR = mSpGridInfo.cellSize;
 	mSimParam.effRSq = mSimParam.effR * mSimParam.effR;
-	mSimParam.isoValue = 0.5f;
+	mSimParam.isoValue = -0.0001f;
+	mSimParam.cutOffThreshold = 0.25f;
 	mSimParam.scSpGridResRatio = mSpGridInfo.cellSize / mScGridInfo.cellSize;
 
 	//! copy to gpu.
@@ -144,8 +145,6 @@ void SurfaceReconstructorCUDA::onDestory()
 void SurfaceReconstructorCUDA::estimateSurfaceVertex()
 {
 	//! calculation of virtual density field.
-	//mSpatialGrid->updateDensityArray();
-
 	std::cout << "step1: estimation of surface vertices....\n";
 
 	//! calculation of grid dim and block dim.
@@ -171,12 +170,6 @@ void SurfaceReconstructorCUDA::updateScalarGridValues()
 	dim3 gridDim_, blockDim_;
 	if (!calcGridDimBlockDim(d_VertexGrid.size, gridDim_, blockDim_))
 		return;
-
-	//checkCudaErrors(cudaMemcpy(d_ParticleIndexInfoGrid.grid, mSpatialGrid->getParticleIndexInfoArray(),
-	//	d_ParticleIndexInfoGrid.size * sizeof(IndexInfo), cudaMemcpyHostToDevice));
-
-	//checkCudaErrors(cudaMemcpy(d_ParticleArray.grid, mSpatialGrid->getParticleArray(),
-	//	d_ParticleArray.size * sizeof(SimpleParticle), cudaMemcpyHostToDevice));
 
 	//! set zero for scalar field grid.
 	checkCudaErrors(cudaMemset(d_VertexGrid.grid, 0, d_VertexGrid.size * sizeof(SimpleVertex)));

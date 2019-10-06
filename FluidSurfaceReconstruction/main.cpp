@@ -7,9 +7,8 @@
 #include "GPU/Utils.h"
 #include "GPU/SurfaceReconstructorCUDA.h"
 
-#define PATH "C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/frame_000060.xyz"
-#define TARGET "C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/frame_000060.obj"
-
+#define PATH "C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/frame_000020.xyz"
+#define TARGET "C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/frame_000020.obj"
 
 int main()
 {

@@ -24,6 +24,7 @@ struct SimParam
 	float isoValue;						// contour value
 	float worldParRadius;				
 	uint scSpGridResRatio;
+	float cutOffThreshold;
 
 };
 
@@ -36,9 +37,7 @@ extern "C"
 	uint ThrustExclusiveScanWrapper(uint* output, uint* input, uint numElements);
 }
 
-//extern "C" { void initSimParam(SimParam simParam); }
-//
-//extern "C" uint ThrustExclusiveScanWrapper(uint* output, uint* input, uint numElements);
+
 
 inline __device__ 
 float3 computeGradColorField(float massJ, float densityJ, float3 ri_rj, float dist, float sr)
@@ -61,22 +60,22 @@ float3 computeGradColorFieldFast(float massJ, float densityJ, float3 ri_rj, floa
 	return grad * massJ / densityJ;
 }
 
-inline __device__ 
-float kernelZB05Smooth(float distSq, float effetiveRadiusSq)
-{
-	if (distSq >= effetiveRadiusSq)
-		return 0;
-	return pow(1.0f - distSq / effetiveRadiusSq, 3);
-}
-
 inline __host__ __device__ 
-float weightFunc(float distSq, float EffectiveRadiusSq)
+float kernelTC01(float distSq, float EffectiveRadiusSq)
 {
 	if (distSq > EffectiveRadiusSq)
 		return 0.f;
 	float d2DR2 = distSq / EffectiveRadiusSq * 0.5f;
 	float d2DR2_2 = d2DR2 * d2DR2;
 	return d2DR2_2 - d2DR2 + 0.25f;
+}
+
+inline __device__
+float kernelZB05(float distSq, float effetiveRadiusSq)
+{
+	if (distSq >= effetiveRadiusSq)
+		return 0;
+	return pow(1.0f - distSq / effetiveRadiusSq, 3);
 }
 
 inline __host__ __device__ 
