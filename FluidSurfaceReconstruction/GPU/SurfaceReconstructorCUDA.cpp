@@ -23,6 +23,7 @@ SurfaceReconstructorCUDA::SurfaceReconstructorCUDA()
 	INITGRID_ZERO(d_ParticleArray);
 	INITGRID_ZERO(d_VertexGrid);
 	INITGRID_ZERO(d_IsSurfaceGrid);
+	INITGRID_ZERO(d_IsSurfaceGridScan);
 
 	INITGRID_ZERO(d_IsValidSurfaceGrid);
 	INITGRID_ZERO(d_IsValidSurfaceGridScan);
@@ -50,7 +51,7 @@ void SurfaceReconstructorCUDA::onInitialize(const std::string &path)
 	//! read particles from given file.
 	std::vector<SimpleParticle> particles;
 	particles = Utils::readParticlesFromXYZ(path, &mSpGridInfo, mSimParam.particleRadius);
-	mScGridInfo.cellSize = mSpGridInfo.cellSize * 0.125;
+	mScGridInfo.cellSize = mSpGridInfo.cellSize * 0.5;
 	mScGridInfo.minPos = mSpGridInfo.minPos;
 	mScGridInfo.maxPos = mSpGridInfo.maxPos;
 	mScGridInfo.resolution = make_uint3(
@@ -62,7 +63,6 @@ void SurfaceReconstructorCUDA::onInitialize(const std::string &path)
 	mSimParam.effR = mSpGridInfo.cellSize;
 	mSimParam.effRSq = mSimParam.effR * mSimParam.effR;
 	mSimParam.isoValue = -0.0001f;
-	mSimParam.cutOffThreshold = 0.25f;
 	mSimParam.scSpGridResRatio = mSpGridInfo.cellSize / mScGridInfo.cellSize;
 
 	//! copy to gpu.
@@ -71,7 +71,6 @@ void SurfaceReconstructorCUDA::onInitialize(const std::string &path)
 	CUDA_CREATE_GRID_1D(d_ParticleArray, particles.size(), SimpleParticle);
 	checkCudaErrors(cudaMemcpy(d_ParticleArray.grid, static_cast<void*>(particles.data()),
 		particles.size() * sizeof(SimpleParticle), cudaMemcpyHostToDevice));
-	cudaDeviceSynchronize();
 
 	//! creation of spatial hashing grid.
 	CUDA_CREATE_GRID_3D(d_DensityGrid, mSpGridInfo.resolution, float);
@@ -88,7 +87,7 @@ void SurfaceReconstructorCUDA::onInitialize(const std::string &path)
 	CUDA_CREATE_GRID_3D(d_VertexGrid, mScGridInfo.resolution, SimpleVertex);
 	CUDA_CREATE_GRID_3D(d_SurfaceVertexIndexArray, mScGridInfo.resolution, uint);
 
-	initSimParam(&mSimParam);
+	//initSimParam(&mSimParam);
 }
 
 void SurfaceReconstructorCUDA::onFrameMove()

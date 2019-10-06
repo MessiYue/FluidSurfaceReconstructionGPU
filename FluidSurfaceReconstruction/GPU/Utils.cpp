@@ -81,25 +81,18 @@ void Utils::writeTrianglesToObj(
 	const std::vector<Triangle>& triangles,
 	const std::string & path)
 {
-	//! generation of indices.
-	std::vector<size_t> indices;
-
-	std::cout << "Write to " << path << "...\n";
 
 	std::ofstream file(path.c_str());
 	if (file)
 	{
-		size_t count = 0;
+		std::cout << "Write to " << path << "...\n";
 
 		//! positions.
 		for (const auto &elem : triangles)
 		{
 			file << "v " << elem.vertices[0].x << " " << elem.vertices[0].y << " " << elem.vertices[0].z << std::endl;
-			indices.push_back(count++);
 			file << "v " << elem.vertices[1].x << " " << elem.vertices[1].y << " " << elem.vertices[1].z << std::endl;
-			indices.push_back(count++);
 			file << "v " << elem.vertices[2].x << " " << elem.vertices[2].y << " " << elem.vertices[2].z << std::endl;
-			indices.push_back(count++);
 		}
 		//! normals.
 		for (const auto &elem : triangles)
@@ -110,20 +103,12 @@ void Utils::writeTrianglesToObj(
 		}
 
 		//! faces.
-		//for (size_t i = 1; i <= triangles.size() * 3; i += 3)
-		//{
-		//	file << "f ";
-		//	file << (i + 0) << "//" << (i + 0) << " ";
-		//	file << (i + 1) << "//" << (i + 1) << " ";
-		//	file << (i + 2) << "//" << (i + 2) << " ";
-		//	file << std::endl;
-		//}
-		for (size_t i = 0; i < indices.size(); i += 3)
+		for (size_t i = 1; i <= triangles.size() * 3; i += 3)
 		{
 			file << "f ";
-			file << indices[i + 0] + 1 << "//" << indices[i + 0] + 1 << " ";
-			file << indices[i + 1] + 1 << "//" << indices[i + 1] + 1 << " ";
-			file << indices[i + 2] + 1 << "//" << indices[i + 2] + 1 << " ";
+			file << (i + 0) << "//" << (i + 0) << " ";
+			file << (i + 1) << "//" << (i + 1) << " ";
+			file << (i + 2) << "//" << (i + 2) << " ";
 			file << std::endl;
 		}
 

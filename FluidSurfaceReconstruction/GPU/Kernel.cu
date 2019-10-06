@@ -1,11 +1,5 @@
 #include "Kernel.cuh"
 
-void initSimParam(SimParam *params)
-{
-	checkCudaErrors(cudaMemcpyToSymbol(simParam, params, sizeof(SimParam)));
-	cudaDeviceSynchronize();
-}
-
 uint ThrustExclusiveScanWrapper(uint* output, uint* input, uint numElements)
 {
 	//! exclusive prefix sum.
@@ -21,7 +15,6 @@ uint ThrustExclusiveScanWrapper(uint* output, uint* input, uint numElements)
 		sizeof(uint), cudaMemcpyDeviceToHost));
 	checkCudaErrors(cudaMemcpy((void *)&lastElementScan, (void *)(output + numElements - 1),
 		sizeof(uint), cudaMemcpyDeviceToHost));
-	cudaDeviceSynchronize();
 	uint sum = lastElement + lastElementScan;
 	return sum;
 }

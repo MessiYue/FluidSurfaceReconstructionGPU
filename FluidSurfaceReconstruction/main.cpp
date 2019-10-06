@@ -5,20 +5,17 @@
 #include <stdio.h>
 
 #include "GPU/Utils.h"
-#include "GPU/SurfaceReconstructorCUDA.h"
+#include "GPU/ReconstructorGPUOurs.h"
 
-#define PATH "C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/frame_000020.xyz"
-#define TARGET "C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/frame_000020.obj"
 
 int main()
 {
-	SurfaceReconstructorCUDA::ptr reconstructor =
-		std::shared_ptr<SurfaceReconstructorCUDA>(new SurfaceReconstructorCUDA());
-	reconstructor->onInitialize(PATH);
-	reconstructor->onFrameMove();
-	std::vector<Triangle> triangles = reconstructor->getTriangles();
-	Utils::writeTrianglesToObj(triangles, TARGET);
-	reconstructor->onDestory();
+	ReconstructorGPUOurs::ptr reconstructor =
+		std::shared_ptr<ReconstructorGPUOurs>(new ReconstructorGPUOurs(
+			"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
+			"frame_%06d", 0, 30));
+
+	reconstructor->reconstruct();
 
     return 0;
 }

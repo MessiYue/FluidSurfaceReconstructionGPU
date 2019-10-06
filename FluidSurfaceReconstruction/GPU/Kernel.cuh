@@ -13,52 +13,42 @@
 struct SimParam
 {
 	float smoothingRadius;				// smoothing radius.
-	float particleMass;					// particle mass.
 	float particleRadius;				// particle radius.
 	float coeSurfaceTension;			// surface tension coefficient.
-	float simScale;
 	float sfParticleGradThreshold;		// gradient threshold of surface particles.
 
 	float effR;							// effective radius.
 	float effRSq;						// square of effective radius.
-	float isoValue;						// contour value
-	float worldParRadius;				
+	float isoValue;						// isocontour value
 	uint scSpGridResRatio;
-	float cutOffThreshold;
-
+	uint searchExtent;				
 };
-
-__constant__ SimParam simParam;
 
 extern "C"
 {
-	void initSimParam(SimParam *params);
-
 	uint ThrustExclusiveScanWrapper(uint* output, uint* input, uint numElements);
 }
 
-
-
-inline __device__ 
-float3 computeGradColorField(float massJ, float densityJ, float3 ri_rj, float dist, float sr)
-{
-	// massJ -> mass of particle j.
-	// densityJ -> density of particle j.
-	// ri_rj -> ri - rj.
-	// dist -> |ri - rj|.
-	// sr -> smoothing radius.
-	float h2_r2 = sr * sr - dist * dist;
-	float3 grad = ri_rj * simParam.coeSurfaceTension * h2_r2 * h2_r2;
-	return grad * massJ / densityJ;
-}
-
-inline __device__ 
-float3 computeGradColorFieldFast(float massJ, float densityJ, float3 ri_rj, float distSq, float srSq)
-{
-	float h2_r2 = srSq - distSq;
-	float3 grad = ri_rj * simParam.coeSurfaceTension * h2_r2 * h2_r2;
-	return grad * massJ / densityJ;
-}
+//inline __device__ 
+//float3 computeGradColorField(float massJ, float densityJ, float3 ri_rj, float dist, float sr)
+//{
+//	// massJ -> mass of particle j.
+//	// densityJ -> density of particle j.
+//	// ri_rj -> ri - rj.
+//	// dist -> |ri - rj|.
+//	// sr -> smoothing radius.
+//	float h2_r2 = sr * sr - dist * dist;
+//	float3 grad = ri_rj * simParam.coeSurfaceTension * h2_r2 * h2_r2;
+//	return grad * massJ / densityJ;
+//}
+//
+//inline __device__ 
+//float3 computeGradColorFieldFast(float massJ, float densityJ, float3 ri_rj, float distSq, float srSq)
+//{
+//	float h2_r2 = srSq - distSq;
+//	float3 grad = ri_rj * simParam.coeSurfaceTension * h2_r2 * h2_r2;
+//	return grad * massJ / densityJ;
+//}
 
 inline __host__ __device__ 
 float kernelTC01(float distSq, float EffectiveRadiusSq)
