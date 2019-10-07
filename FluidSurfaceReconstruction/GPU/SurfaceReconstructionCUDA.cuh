@@ -108,10 +108,10 @@ launchGenerateTriangles(
 //! func: establish of spatial grid for neighborhood researching.
 extern "C" void 
 launchSpatialGridBuilding(
-	ParticleArray *particlesArray,						// particles array.
+	ParticleArray particlesArray,						// particles array.
 	uint numParticles,									// number of particles.
-	ParticleIndexInfoGrid *particlesIndexInforArray,	// particles' indices for each cell.
-	DensityGrid *densityGrid,							// virtual density grid.
+	ParticleIndexInfoGrid particlesIndexInforArray,		// particles' indices for each cell.
+	DensityGrid densityGrid,							// virtual density grid.
 	GridInfo spatialGridInfo);							// spatial hashing grid information.
 
 //! ------------------------------------------Common---------------------------------------------

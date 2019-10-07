@@ -58,6 +58,7 @@ void ReconstructorGPUOurs::estimationOfSurfaceVertices()
 
 	//! set zero for mDeviceIsSurfaceGrid.
 	checkCudaErrors(cudaMemset(mDeviceIsSurfaceGrid.grid, 0, mDeviceIsSurfaceGrid.size * sizeof(uint)));
+	checkCudaErrors(cudaMemset(mDeviceIsSurfaceGridScan.grid, 0, mDeviceIsSurfaceGridScan.size * sizeof(uint)));
 
 	//! launch the estimation kernel function.
 	launchEstimateSurfaceVertices(gridDim_, blockDim_, mDeviceDensityGrid, mDeviceIsSurfaceGrid,
@@ -76,6 +77,9 @@ void ReconstructorGPUOurs::compactationOfSurfaceVertices()
 		std::cerr << "No surface vertex detected!\n";
 		return;
 	}
+
+	std::cout << "surface vertices ratio: " << static_cast<double>(mNumSurfaceVertices)
+		/ (mScalarFieldGridInfo.resolution.x * mScalarFieldGridInfo.resolution.y * mScalarFieldGridInfo.resolution.z) << std::endl;
 
 	//! calculation of grid dim and block dim.
 	dim3 gridDim_, blockDim_;
@@ -147,6 +151,9 @@ void ReconstructorGPUOurs::compactationOfValidSurafceCubes()
 		std::cerr << "No vertex of surface mesh detected!\n";
 		return;
 	}
+
+	std::cout << "valid surface cubes ratio: " << static_cast<double>(mNumValidSurfaceCubes)
+		/ (mScalarFieldGridInfo.resolution.x * mScalarFieldGridInfo.resolution.y * mScalarFieldGridInfo.resolution.z) << std::endl;
 
 	//£¡memory allocation of valid surface cubes.
 	SAFE_CUDA_FREE_GRID(mDeviceValidSurfaceIndexArray);

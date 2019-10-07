@@ -11,11 +11,11 @@
 #include <helper_math.h>
 #include <cuda_runtime_api.h>
 
-#include "Utils.h"
 #include "Kernel.cuh"
 #include "CudaUtils.h"
 #include "SurfaceReconstructionCUDA.cuh"
 #include "../CPU/MarchingCubesHelper.h"
+#include "../CPU/MathUtils.h"
 
 ReconstructorGPU::ReconstructorGPU(const std::string & directory, const std::string & filePattern,
 	unsigned int from, unsigned int to) : 
@@ -83,6 +83,9 @@ void ReconstructorGPU::onBeginFrame(unsigned int frameIndex)
 		(mScalarFieldGridInfo.maxPos.x - mScalarFieldGridInfo.minPos.x) / mScalarFieldGridInfo.cellSize + 1,
 		(mScalarFieldGridInfo.maxPos.y - mScalarFieldGridInfo.minPos.y) / mScalarFieldGridInfo.cellSize + 1,
 		(mScalarFieldGridInfo.maxPos.z - mScalarFieldGridInfo.minPos.z) / mScalarFieldGridInfo.cellSize + 1);
+
+	std::cout << "Scalar Field Resolution: " << mScalarFieldGridInfo.resolution.x << " * "
+		<< mScalarFieldGridInfo.resolution.y << " * " << mScalarFieldGridInfo.resolution.z << std::endl;
 
 	//! assigment of simulation parameters.
 	mSimParam.effR = mSpatialGridInfo.cellSize;
@@ -208,10 +211,12 @@ void ReconstructorGPU::spatialHashingGridBuilding(const std::vector<SimplePartic
 	//! memory allocation for virtual density grid and spatial hashing grid.
 	CUDA_CREATE_GRID_3D(mDeviceDensityGrid, mSpatialGridInfo.resolution, float);
 	CUDA_CREATE_GRID_3D(mDeviceCellParticleIndexArray, mSpatialGridInfo.resolution, IndexInfo);
+	cudaMemset(mDeviceDensityGrid.grid, 0.0f, mDeviceDensityGrid.size * sizeof(float));
+	cudaMemset(mDeviceCellParticleIndexArray.grid, 0xffffffff, mDeviceCellParticleIndexArray.size * sizeof(IndexInfo));
 
 	//! launch the building kernel function.
-	launchSpatialGridBuilding(&mDeviceParticlesArray, mNumParticles, &mDeviceCellParticleIndexArray,
-		&mDeviceDensityGrid, mSpatialGridInfo);
+	launchSpatialGridBuilding(mDeviceParticlesArray, mNumParticles, mDeviceCellParticleIndexArray,
+		mDeviceDensityGrid, mSpatialGridInfo);
 }
 
 void ReconstructorGPU::saveFluidSurfaceObjToFile(unsigned int frameIndex)
@@ -235,7 +240,6 @@ void ReconstructorGPU::saveFluidSurfaceObjToFile(unsigned int frameIndex)
 		sizeof(float3) * nums, cudaMemcpyDeviceToHost));
 	checkCudaErrors(cudaMemcpy(static_cast<void*>(normals.data()), mDeviceNormalArray.grid,
 		sizeof(float3) * nums, cudaMemcpyDeviceToHost));
-	cudaDeviceSynchronize();
 
 	for (size_t index = 0; index < nums; index += 3)
 	{

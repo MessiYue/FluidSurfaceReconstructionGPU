@@ -94,9 +94,7 @@
     <ClCompile Include="CPU\SurfaceReconstructor.cpp" />
     <ClCompile Include="GPU\ReconstructorGPU.cpp" />
     <ClCompile Include="GPU\ReconstructorGPUOurs.cpp" />
-    <ClCompile Include="GPU\SurfaceReconstructorCUDA.cpp" />
     <ClCompile Include="GPU\Timer.cpp" />
-    <ClCompile Include="GPU\Utils.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CPU\Box3.h" />
@@ -114,9 +112,7 @@
     <ClInclude Include="GPU\ReconstructorGPU.h" />
     <ClInclude Include="GPU\ReconstructorGPUOurs.h" />
     <ClInclude Include="GPU\SurfaceReconstructionCUDA.cuh" />
-    <ClInclude Include="GPU\SurfaceReconstructorCUDA.h" />
     <ClInclude Include="GPU\Timer.h" />
-    <ClInclude Include="GPU\Utils.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

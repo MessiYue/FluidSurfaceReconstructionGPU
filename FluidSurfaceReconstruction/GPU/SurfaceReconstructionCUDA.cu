@@ -625,10 +625,10 @@ void findCellRangeKernel(
 }
 
 void launchSpatialGridBuilding(
-	ParticleArray *particlesArray,
+	ParticleArray particlesArray,
 	uint numParticles,
-	ParticleIndexInfoGrid *particlesIndexInforArray,
-	DensityGrid *densityGrid,
+	ParticleIndexInfoGrid particlesIndexInforArray,
+	DensityGrid densityGrid,
 	GridInfo spatialGridInfo)
 {
 	//! memory allocation for particles' hash value's storage.
@@ -642,7 +642,7 @@ void launchSpatialGridBuilding(
 
 	//! step1: computation of hash value of particles.
 	calcParticlesHashKernel << <numBlocks, numThreads >> > (
-		dGridParticleHash, *particlesArray, numParticles, *densityGrid, spatialGridInfo);
+		dGridParticleHash, particlesArray, numParticles, densityGrid, spatialGridInfo);
 	getLastCudaError("calcParticlesHashKernel");
 	cudaDeviceSynchronize();
 
@@ -650,15 +650,15 @@ void launchSpatialGridBuilding(
 	thrust::sort_by_key(
 		thrust::device_ptr<unsigned int>(dGridParticleHash),
 		thrust::device_ptr<unsigned int>(dGridParticleHash + numParticles),
-		thrust::device_ptr<SimpleParticle>(particlesArray->grid));
+		thrust::device_ptr<SimpleParticle>(particlesArray.grid));
 	getLastCudaError("sort_by_key");
 	cudaDeviceSynchronize();
 
 	//! step3: find start index and end index of each cell.
 	// 0xffffffff, need to be attentioned.
-	cudaMemset(particlesIndexInforArray->grid, 0xffffffff, particlesIndexInforArray->size * sizeof(IndexInfo));
 	unsigned int memSize = sizeof(unsigned int) * (numThreads + 1);
-	findCellRangeKernel << < numBlocks, numThreads, memSize >> > (*particlesIndexInforArray, numParticles,
+	cudaMemset(particlesIndexInforArray.grid, 0xffffffff, particlesIndexInforArray.size * sizeof(IndexInfo));
+	findCellRangeKernel << < numBlocks, numThreads, memSize >> > (particlesIndexInforArray, numParticles,
 		dGridParticleHash);
 	getLastCudaError("findCellRangeKernel");
 	cudaDeviceSynchronize();
