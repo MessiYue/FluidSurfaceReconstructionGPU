@@ -5,6 +5,8 @@
 #include <vector_types.h>
 #include <vector_functions.h>
 
+#include "MathVector.h"
+
 #define TRUE_ 1
 #define FALSE_ 0
 
@@ -12,75 +14,67 @@ typedef unsigned int uint;
 typedef unsigned char uchar;
 typedef unsigned long long ulonglong;
 
+//! simulation parameters.
+struct SimParam
+{
+	float particleRadius;				// particle radius.
+	float particleMass;					// particle mass.
+	float smoothingRadius;				// effective radius.
+	float smoothingRadiusSq;			// square of effective radius.
+	float isoValue;						// isocontour value
+	uint scSpGridResRatio;				// spatial hashing grid res / scalar field grid res.
+	uint expandExtent;					// expandsion extent.
+	float spatialCellSizeScale;			// scaling for spatial hashing grid cell size.
+};
+
+//! grid or array type.
 template<typename T>
 struct Grid 
 {
-	T* grid;
-	ulonglong size;
-	ulonglong count;
-	uint3 resolution;
+	T* grid;													// data array.
+	ulonglong size;												// array size.
+	ulonglong count;											//
+	uint3 resolution;											// grid resolution.
 };
 
-struct IndexInfo 
-{
-	uint start, end;
-};
+//! index range from start to end.
+struct IndexRange { uint start, end; };
 
-struct SimpleParticle 
-{
-	float3 pos;
-};
+//! particle position.
+struct ParticlePosition { float3 pos; };
 
-struct ParticleAk 
-{
-	float3 pos;
-	float density;
-};
+//! scalar value.
+struct ScalarValue { float value; };
 
-struct SimpleVertex 
-{
-	float value;
-};
-
-struct VertexAkinci
-{
-	float value;
-	uint indexInScGrid;
-};
-
+//! grid's size information.
 struct GridInfo
 {
-	uint3 resolution;
 	float3 minPos;
 	float3 maxPos;
 	float cellSize;
+	uint3 resolution;
+};
+
+//! triangle.
+struct Triangle
+{
+	fVector3 vertices[3];
+	fVector3 normals[3];
 };
 
 typedef Grid<int> IntGrid;
 typedef Grid<uint> UintGrid;
 typedef Grid<float> FloatGrid;
 typedef Grid<float3> Float3Grid;
-
 typedef Grid<float> DensityGrid;
 typedef Grid<uint> IsSurfaceGrid;
-
-typedef Grid<SimpleParticle> ParticleArray;
-typedef Grid<ParticleAk> ParticleAkArray;
-typedef Grid<IndexInfo> ParticleIndexInfoGrid;
-
-typedef Grid<SimpleVertex>  VertexGrid;							
-typedef Grid<VertexAkinci> VerAkGrid;							
-
+typedef Grid<ParticlePosition> ParticleArray;
+typedef Grid<IndexRange> ParticleIndexRangeGrid;
+typedef Grid<ScalarValue>  ScalarFieldGrid;							
 typedef Grid<uint> NumVerticesGrid;								// number of vertices.
 typedef Grid<uint> IsValidSurfaceGrid;							// whethe valid or not for cells.
-typedef Grid<uint> SurfaceVertexIndexArray;						// compacted surface vertices' indices.
+typedef Grid<uint> SurfaceVerticesIndexArray;					// compacted surface vertices' indices.
 typedef Grid<uint> ValidSurfaceIndexArray;						// compacted valid surface cells' indices.
-
-inline std::ostream& operator<<(std::ostream& os, const VertexAkinci& v)
-{
-	os << "IdxSc=" << v.indexInScGrid << " v=" << v.value;
-	return os;
-}
 
 inline void safeFree(void** ptr)
 {
@@ -88,11 +82,6 @@ inline void safeFree(void** ptr)
 		return;
 	free(*ptr);
 	*ptr = 0;
-}
-
-inline uint index31(uint3 index3, uint3 res)
-{
-	return index3.z*res.x*res.y + index3.y*res.x + index3.x;
 }
 
 #ifndef SAFE_DELETE

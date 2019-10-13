@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../CPU/MathVector.h"
-
 #include <iostream>
 #include <helper_cuda.h>
 #include <helper_math.h>

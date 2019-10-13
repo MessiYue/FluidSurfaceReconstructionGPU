@@ -1,6 +1,6 @@
 #include "MathVector.h"
 
-#include "MathUtils.h"
+const float EPSILON_MATH = (float)1.0e-7;
 
 void fVector3::normalize()
 {

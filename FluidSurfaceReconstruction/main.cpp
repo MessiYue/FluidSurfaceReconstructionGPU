@@ -4,15 +4,15 @@
 
 #include <stdio.h>
 
-#include "GPU/ReconstructorGPUOurs.h"
+#include "GPU/ReconstructorGPUOursZB05.h"
 
 
 int main()
 {
-	ReconstructorGPUOurs::ptr reconstructor =
-		std::shared_ptr<ReconstructorGPUOurs>(new ReconstructorGPUOurs(
+	ReconstructorGPUOursZB05::ptr reconstructor =
+		std::shared_ptr<ReconstructorGPUOursZB05>(new ReconstructorGPUOursZB05(
 			"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
-			"frame_%06d", 0, 120));
+			"frame_%06d", 0, 30));
 
 	reconstructor->reconstruct();
 

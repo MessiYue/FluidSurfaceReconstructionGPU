@@ -5,7 +5,6 @@
 
 #include "Timer.h"
 #include "Defines.h"
-#include "Kernel.cuh"
 
 class ReconstructorGPU
 {
@@ -35,13 +34,20 @@ protected:
 
 	virtual void onEndFrame(unsigned int frameIndex);
 
+	//! finalization.
+	virtual void onInitialization();
+
+	//! initialization.
+	virtual void onFinalization();
+
 protected:
 
 	//! read the particles from given file.
-	std::vector<SimpleParticle> readParticlesFromFile(unsigned int frameIndex);
+	void readParticlesFromFile(unsigned int frameIndex,
+		std::vector<ParticlePosition> &particles, std::vector<ScalarValue> &densities);
 
 	//! spatial hashing grid building.
-	void spatialHashingGridBuilding(const std::vector<SimpleParticle> &particles);
+	void spatialHashingGridBuilding();
 
 	//! save the surface .obj file.
 	void saveFluidSurfaceObjToFile(unsigned int frameIndex);
@@ -49,11 +55,14 @@ protected:
 	//! save the times record to file.
 	void saveTimeConsumingRecordToFile();
 
-	//! finalization.
-	void onInitialization();
+	//! detection of valid surface cubes.
+	void detectionOfValidSurfaceCubes();
 
-	//! initialization.
-	void onFinalization();
+	//! compactation of valid surface cubes.
+	void compactationOfValidSurafceCubes();
+
+	//! generation of triangles for surface using marching cube algorithm.
+	void generationOfSurfaceMeshUsingMC();
 
 protected:
 	Timer::ptr mTimer;										//! timer for recording.
@@ -74,14 +83,15 @@ protected:
 
 	//! gpu arrays or grids.
 
-	VertexGrid mDeviceScalarFieldGrid;						//! scalar field grid.
+	ScalarFieldGrid mDeviceScalarFieldGrid;					//! scalar field grid.
 	ParticleArray mDeviceParticlesArray;					//! particles array.
-	ParticleIndexInfoGrid mDeviceCellParticleIndexArray;	//! particles' start index and end index for each cell of grid.
+	ScalarFieldGrid mDeviceParticlesDensityArray;			//! particle density array.
+	ParticleIndexRangeGrid mDeviceCellParticleIndexArray;	//! particles' start index and end index for each cell of grid.
 
-	DensityGrid mDeviceDensityGrid;							//! virtual denisty field grid.
+	DensityGrid mDeviceFlagGrid;							//! virtual denisty field grid.
 	IsSurfaceGrid mDeviceIsSurfaceGrid;						//! whether the vertex is in surface region or not.
 	IsSurfaceGrid mDeviceIsSurfaceGridScan;					//! exclusive prefix sum of mDeviceIsSurfaceGrid.
-	SurfaceVertexIndexArray mDeviceSurfaceVertexIndexArray;	//! compacted surface vertices' indices array.
+	SurfaceVerticesIndexArray mDeviceSurfaceVerticesIndexArray;	//! compacted surface vertices' indices array.
 	IsValidSurfaceGrid mDeviceIsValidSurfaceGrid;			//! whether the cube is valid or not.
 	IsValidSurfaceGrid mDeviceIsValidSurfaceGridScan;		//! exculsive prefix sum of mDeviceIsValidSurfaceGrid.
 	NumVerticesGrid mDeviceNumVerticesGrid;					//! number of each cube's vertices.

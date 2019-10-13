@@ -2,12 +2,14 @@
 
 #include "ReconstructorGPU.h"
 
-class ReconstructorGPUOurs : public ReconstructorGPU
+class ReconstructorGPUOursZB05 : public ReconstructorGPU
 {
 public:
-	ReconstructorGPUOurs(const std::string &directory, const std::string &filePattern, unsigned int from, unsigned int to);
+	typedef std::shared_ptr<ReconstructorGPUOursZB05> ptr;
 
-	virtual ~ReconstructorGPUOurs();
+	ReconstructorGPUOursZB05(const std::string &directory, const std::string &filePattern, unsigned int from, unsigned int to);
+
+	virtual ~ReconstructorGPUOursZB05();
 
 	virtual std::string getAlgorithmType();
 	
@@ -19,6 +21,12 @@ protected:
 
 	virtual void onEndFrame(unsigned int frameIndex);
 
+	//! finalization.
+	virtual void onInitialization() override;
+
+	//! initialization.
+	virtual void onFinalization() override;
+
 	//! estimation of surface vertices.
 	void estimationOfSurfaceVertices();
 
@@ -27,17 +35,5 @@ protected:
 
 	//! calculation of scalar field grid with compacted array.
 	void computationOfScalarFieldGrid();
-
-	//! detection of valid surface cubes.
-	void detectionOfValidSurfaceCubes();
-
-	//! compactation of valid surface cubes.
-	void compactationOfValidSurafceCubes();
-
-	//! generation of triangles for surface using marching cube algorithm.
-	void generationOfSurfaceMeshUsingMC();
-
-private:
-
 
 };

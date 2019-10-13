@@ -1,25 +1,23 @@
 
 #include <Windows.h>
-#include "SurfaceReconstructionCUDA.cuh"
+#include "ReconstructionCUDA.cuh"
 
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
-#include <thrust/device_ptr.h>
-#include <thrust/for_each.h>
-#include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
 #include <thrust/tuple.h>
+#include <thrust/for_each.h>
+#include <thrust/device_ptr.h>
 #include <cooperative_groups.h>
+#include <thrust/iterator/zip_iterator.h>
 
 #include <helper_cuda.h>
 #include <helper_math.h>
 #include <helper_functions.h>
 
 #include "Defines.h"
-#include "Kernel.cuh"
 #include "CudaUtils.h"
-#include "../CPU/MarchingCubesHelper.h"
 
 using namespace cooperative_groups;
 
@@ -122,27 +120,27 @@ void estimateSurfaceVertices(
 __device__ 
 void updateScalarFieldValueTC01(
 	uint vertexIndex1D,								// input, vertex's index of scalar field grid.
-	ParticleIndexInfoGrid particleIndexInfoGrid,	// input, particles' indices for each cell of spatial grid.
+	ParticleIndexRangeGrid particleIndexRangeGrid,	// input, particles' indices for each cell of spatial grid.
 	ParticleArray particleArray,					// input, particle array.
-	VertexGrid vertexGrid,							// output, scalar field grid.
+	ScalarFieldGrid ScalarFieldGrid,							// output, scalar field grid.
 	GridInfo spatialGridInfo,						// input, spatial hasing grid information.
 	GridInfo scalarGridInfo,						// input, scalar field grid information.
 	SimParam params)					 
 {
 	// get corresponding vertex position.
-	float3 vPos = getVertexPos(index1DTo3D(vertexIndex1D, vertexGrid.resolution),
+	float3 vPos = getVertexPos(index1DTo3D(vertexIndex1D, ScalarFieldGrid.resolution),
 		scalarGridInfo.minPos, scalarGridInfo.cellSize);
 	int3 curIndex = getIndex3D(vPos, spatialGridInfo.minPos, spatialGridInfo.cellSize);
 
 	// get influenced spatial hashing cells' bounding box and clamping.
 	int3 minIndex = curIndex - 1;
 	int3 maxIndex = curIndex + 1;
-	minIndex = clamp(minIndex, make_int3(0, 0, 0), make_int3(particleIndexInfoGrid.resolution.x - 1,
-		particleIndexInfoGrid.resolution.y - 1, particleIndexInfoGrid.resolution.z - 1));
-	maxIndex = clamp(maxIndex, make_int3(0, 0, 0), make_int3(particleIndexInfoGrid.resolution.x - 1,
-		particleIndexInfoGrid.resolution.y - 1, particleIndexInfoGrid.resolution.z - 1));
+	minIndex = clamp(minIndex, make_int3(0, 0, 0), make_int3(particleIndexRangeGrid.resolution.x - 1,
+		particleIndexRangeGrid.resolution.y - 1, particleIndexRangeGrid.resolution.z - 1));
+	maxIndex = clamp(maxIndex, make_int3(0, 0, 0), make_int3(particleIndexRangeGrid.resolution.x - 1,
+		particleIndexRangeGrid.resolution.y - 1, particleIndexRangeGrid.resolution.z - 1));
 
-	//SimpleVertex* v = &vertexGrid.grid[vertexIndex1D];
+	//ScalarValue* v = &ScalarFieldGrid.grid[vertexIndex1D];
 	float val = 0.f;
 	for (int zSp = minIndex.z; zSp <= maxIndex.z; zSp++)
 	{
@@ -153,46 +151,46 @@ void updateScalarFieldValueTC01(
 				// 3D index of spatialGrid.
 				uint3 index3D = make_uint3(xSp, ySp, zSp);
 				// 粒子在particleArray中的索引信息（偏移与长度）
-				IndexInfo indexInfo = particleIndexInfoGrid.grid[index3DTo1D(index3D, particleIndexInfoGrid.resolution)];
+				IndexRange IndexRange = particleIndexRangeGrid.grid[index3DTo1D(index3D, particleIndexRangeGrid.resolution)];
 				// travel each particle of the corresponding cell to calcular scalr value.
-				if (indexInfo.start == 0xffffffff)
+				if (IndexRange.start == 0xffffffff)
 					continue;
-				for (uint i = indexInfo.start; i < indexInfo.end; i++)
+				for (uint i = IndexRange.start; i < IndexRange.end; i++)
 				{
 					float3 delta = vPos - particleArray.grid[i].pos;
 					float distSq = dot(delta, delta);
 					// using TC01 kernel function.
-					val += kernelTC01(distSq, params.effRSq);
+					val += kernelTC01(distSq, params.smoothingRadiusSq);
 				}
 			}
 		}
 	}
-	vertexGrid.grid[vertexIndex1D].value = val;
+	ScalarFieldGrid.grid[vertexIndex1D].value = val;
 }
 
 //! func: calculate the corresponding vertex's scalar value of scalar field using ZB05 method.
 __device__
 void updateScalarFieldValueZB05(
 	uint vertexIndex1D,								// input, vertex's index of scalar field grid.
-	ParticleIndexInfoGrid particleIndexInfoGrid,	// input, particles' indices for each cell of spatial grid.
+	ParticleIndexRangeGrid particleIndexRangeGrid,	// input, particles' indices for each cell of spatial grid.
 	ParticleArray particleArray,					// input, particle array.
-	VertexGrid vertexGrid,							// output, scalar field grid.
+	ScalarFieldGrid ScalarFieldGrid,							// output, scalar field grid.
 	GridInfo spatialGridInfo,						// input, spatial hasing grid information.
 	GridInfo scalarGridInfo,						// input, scalar field grid information.
 	SimParam params)
 {
 	// get corresponding vertex position.
-	float3 vPos = getVertexPos(index1DTo3D(vertexIndex1D, vertexGrid.resolution),
+	float3 vPos = getVertexPos(index1DTo3D(vertexIndex1D, ScalarFieldGrid.resolution),
 		scalarGridInfo.minPos, scalarGridInfo.cellSize);
 
 	// get influenced spatial hashing cells' bounding box and clamping.
 	int3 curIndex = getIndex3D(vPos, spatialGridInfo.minPos, spatialGridInfo.cellSize);
 	int3 minIndex = curIndex - 1;
 	int3 maxIndex = curIndex + 1;
-	minIndex = clamp(minIndex, make_int3(0, 0, 0), make_int3(particleIndexInfoGrid.resolution.x - 1,
-		particleIndexInfoGrid.resolution.y - 1, particleIndexInfoGrid.resolution.z - 1));
-	maxIndex = clamp(maxIndex, make_int3(0, 0, 0), make_int3(particleIndexInfoGrid.resolution.x - 1,
-		particleIndexInfoGrid.resolution.y - 1, particleIndexInfoGrid.resolution.z - 1));
+	minIndex = clamp(minIndex, make_int3(0, 0, 0), make_int3(particleIndexRangeGrid.resolution.x - 1,
+		particleIndexRangeGrid.resolution.y - 1, particleIndexRangeGrid.resolution.z - 1));
+	maxIndex = clamp(maxIndex, make_int3(0, 0, 0), make_int3(particleIndexRangeGrid.resolution.x - 1,
+		particleIndexRangeGrid.resolution.y - 1, particleIndexRangeGrid.resolution.z - 1));
 
 	float wSum = 0.0f;
 	float3 posAvg = make_float3(0.0f, 0.0f, 0.0f);
@@ -204,18 +202,18 @@ void updateScalarFieldValueZB05(
 			{
 				// 3D index of spatialGrid.
 				uint3 index3D = make_uint3(xSp, ySp, zSp);
-				IndexInfo indexInfo = particleIndexInfoGrid.grid[index3DTo1D(index3D, particleIndexInfoGrid.resolution)];
+				IndexRange IndexRange = particleIndexRangeGrid.grid[index3DTo1D(index3D, particleIndexRangeGrid.resolution)];
 				// travel each particle of the corresponding cell to calcular scalr value.
-				if (indexInfo.start == 0xffffffff)
+				if (IndexRange.start == 0xffffffff)
 					continue;
-				for (uint i = indexInfo.start; i < indexInfo.end; i++)
+				for (uint i = IndexRange.start; i < IndexRange.end; i++)
 				{
 					float3 neighborPos = particleArray.grid[i].pos;
 					float3 delta = vPos - neighborPos;
 					float distSq = dot(delta, delta);
 
 					// using ZB05 kernel function.
-					const float wi = kernelZB05(distSq, params.effRSq);
+					const float wi = kernelZB05(distSq, params.smoothingRadiusSq);
 					wSum += wi;
 					posAvg += neighborPos * wi;
 				}
@@ -225,7 +223,7 @@ void updateScalarFieldValueZB05(
 	if (wSum > 0.0f)
 	{
 		posAvg /= wSum;
-		vertexGrid.grid[vertexIndex1D].value = length(vPos - posAvg) - params.particleRadius;
+		ScalarFieldGrid.grid[vertexIndex1D].value = length(vPos - posAvg) - params.particleRadius;
 	}
 }
 
@@ -234,9 +232,9 @@ void updateScalarFieldValueZB05(
 __global__ 
 void updateScalarGridValuesStd(
 	IsSurfaceGrid isSurfaceGrid,				// input, whether the corresponding grid point is in surface region or not.
-	ParticleIndexInfoGrid particleIndexInfoGrid,// input, particles' indices for each cell of spatial grid.	
+	ParticleIndexRangeGrid particleIndexRangeGrid,// input, particles' indices for each cell of spatial grid.	
 	ParticleArray particleArray,				// input, particles array.
-	VertexGrid vertexGrid,						// output, scalar field grid.
+	ScalarFieldGrid ScalarFieldGrid,						// output, scalar field grid.
 	GridInfo spatialGridInfo,					// input, spatial hasing grid information.
 	GridInfo scalarGridInfo,					// input, scalar field grid information.
 	SimParam params
@@ -244,21 +242,21 @@ void updateScalarGridValuesStd(
 {
 	uint threadId = getThreadIdGlobal();
 	// boundary detection.
-	if (threadId >= vertexGrid.size)
+	if (threadId >= ScalarFieldGrid.size)
 		return;
 	// if the grid point is not in surface region, just return.
 	if (isSurfaceGrid.grid[threadId] != 1)
 		return;
 	// call function updateVertexValue() to calculate scalar field value.
-	updateScalarFieldValueTC01(threadId, particleIndexInfoGrid, particleArray,
-		vertexGrid, spatialGridInfo, scalarGridInfo, params);
+	updateScalarFieldValueTC01(threadId, particleIndexRangeGrid, particleArray,
+		ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
 }
 
 //! func: compact the surface vertices into a continuous array.(discard those that are not in surface region)
 //! So we can deal with this compacted array to get higher performance without conditional branch.
 __global__ 
 void compactSurfaceVertex(
-	SurfaceVertexIndexArray svIndexArray,	// output, compacted surface vertices' indices array.
+	SurfaceVerticesIndexArray svIndexArray,	// output, compacted surface vertices' indices array.
 	IsSurfaceGrid isSurfaceGridScan,		// input, exclusive prefix sum of isSurfaceGrid.
 	IsSurfaceGrid isSurfaceGrid,			// input, whether the corresponding grid point is in surface region or not.
 	SimParam params)			
@@ -273,11 +271,11 @@ void compactSurfaceVertex(
 //  This time we don't need to deal with non-surface vertices.
 __global__ 
 void updateScalarGridValuesCompacted(
-	SurfaceVertexIndexArray svIndexArray,		// input, compacted surface vertices' indices array.
+	SurfaceVerticesIndexArray svIndexArray,		// input, compacted surface vertices' indices array.
 	uint numSurfaceVertices,					// input, length of svIndexArray.
-	ParticleIndexInfoGrid particleIndexInfoGrid,// input, particles' indices for each cell of spatial grid.	
+	ParticleIndexRangeGrid particleIndexRangeGrid,// input, particles' indices for each cell of spatial grid.	
 	ParticleArray particleArray,				// input, particles' position array.
-	VertexGrid vertexGrid,						// output, scalar field grid.
+	ScalarFieldGrid ScalarFieldGrid,						// output, scalar field grid.
 	GridInfo spatialGridInfo,					// input, spatial hashing grid information.
 	GridInfo scalarGridInfo,					// input, scalar field grid information.
 	SimParam params)					
@@ -285,19 +283,19 @@ void updateScalarGridValuesCompacted(
 	uint threadId = getThreadIdGlobal();
 	if (threadId >= svIndexArray.size || threadId >= numSurfaceVertices)
 		return;
-	//updateScalarFieldValueTC01(svIndexArray.grid[threadId], particleIndexInfoGrid, particleArray,
-	//	vertexGrid, spatialGridInfo, scalarGridInfo, params);
-	updateScalarFieldValueZB05(svIndexArray.grid[threadId], particleIndexInfoGrid, particleArray,
-		vertexGrid, spatialGridInfo, scalarGridInfo, params);
+	//updateScalarFieldValueTC01(svIndexArray.grid[threadId], particleIndexRangeGrid, particleArray,
+	//	ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
+	updateScalarFieldValueZB05(svIndexArray.grid[threadId], particleIndexRangeGrid, particleArray,
+		ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
 }
 
 //! func: valid surface cubes detection. Here "valud" means that the cube will produce triangles.
 //! We detect those valid cubes to avoid extra branch.
 __global__ 
 void detectValidSurfaceCubes(
-	SurfaceVertexIndexArray svIndexArray,		// input, compacted surface vertices' indices array.
+	SurfaceVerticesIndexArray svIndexArray,		// input, compacted surface vertices' indices array.
 	uint numSurfaceVertices,					// input, length of svIndexArray.
-	VertexGrid vGrid,							// input, scalar field grid.
+	ScalarFieldGrid vGrid,							// input, scalar field grid.
 	IsValidSurfaceGrid isValidSurfaceGrid,		// output, whether the cell is valid or not.
 	NumVerticesGrid numVerticesGrid,			// output, number of vertices per cell.
 	IsSurfaceGrid isSfGrid,						// input, whether the corresponding grid point is in surface region or not.
@@ -350,11 +348,11 @@ void compactValidSurfaceCubes(
 //! func: generate triangles using marching cube algorithm.
 __global__ 
 void generateTriangles(
-	SurfaceVertexIndexArray surfaceIndexInGridArray,// input, compacted surface vertices' indice array.
+	SurfaceVerticesIndexArray surfaceIndexInGridArray,// input, compacted surface vertices' indice array.
 	ValidSurfaceIndexArray validIndexInSurfaceArray,// input, valid cubes' indices array.
 	GridInfo scGridInfo,							// input, scalar grid information.
 	NumVerticesGrid numVerticesGridScan,			// input, exculsive prefix sum of numVerticesGrid.
-	VertexGrid vertexGrid,							// input, scalar field grid.
+	ScalarFieldGrid ScalarFieldGrid,							// input, scalar field grid.
 	Float3Grid posGrid,								// output, positions of triangles.
 	Float3Grid norGrid,								// output, normals of triangles.
 	SimParam params)								
@@ -368,10 +366,10 @@ void generateTriangles(
 	// 1D index of sclar field grid.
 	uint gridIndex = surfaceIndexInGridArray.grid[surfaceIndex];
 	// 3D index of scalar field grid.
-	uint3 gridIndex3D = index1DTo3D(gridIndex, vertexGrid.resolution);
+	uint3 gridIndex3D = index1DTo3D(gridIndex, ScalarFieldGrid.resolution);
 
 	// get corresponding situation flag.
-	uint vertexFlag = getVertexFlag(gridIndex3D, vertexGrid, params.isoValue);
+	uint vertexFlag = getVertexFlag(gridIndex3D, ScalarFieldGrid, params.isoValue);
 	// get edge flag.
 	uint edgeFlag = tex1Dfetch(edgeTex, vertexFlag);
 	// get number of vertices.
@@ -393,7 +391,7 @@ void generateTriangles(
 	// get 8 corners' positions.
 	getCornerPositions(cornerIndex3Ds, scGridInfo.minPos, scGridInfo.cellSize, cornerPoss);
 	// get 8 corners' normals.
-	getCornerNormals(cornerIndex3Ds, vertexGrid, cornerNors);
+	getCornerNormals(cornerIndex3Ds, ScalarFieldGrid, cornerNors);
 
 	float sign = (params.isoValue < 0.0f) ? (-1.0f) : (1.0f);
 
@@ -404,11 +402,11 @@ void generateTriangles(
 		{
 			uint start = tex1Dfetch(vertexIndexesOfEdgeTex, i << 1);
 			uint end = tex1Dfetch(vertexIndexesOfEdgeTex, (i << 1) + 1);
-			uint startIndex = index3DTo1D(cornerIndex3Ds[start], vertexGrid.resolution);
-			uint endIndex = index3DTo1D(cornerIndex3Ds[end], vertexGrid.resolution);
+			uint startIndex = index3DTo1D(cornerIndex3Ds[start], ScalarFieldGrid.resolution);
+			uint endIndex = index3DTo1D(cornerIndex3Ds[end], ScalarFieldGrid.resolution);
 
-			float startValue = vertexGrid.grid[startIndex].value;
-			float endValue = vertexGrid.grid[endIndex].value;
+			float startValue = ScalarFieldGrid.grid[startIndex].value;
+			float endValue = ScalarFieldGrid.grid[endIndex].value;
 			float lerpFac = getLerpFac(startValue, endValue, params.isoValue);
 			intersectPoss[i] = lerp(cornerPoss[start], cornerPoss[end], lerpFac);
 			intersectNormals[i] = sign * normalize(lerp(cornerNors[start], cornerNors[end], lerpFac));
@@ -447,16 +445,16 @@ void launchUpdateScalarGridValues(
 	dim3 gridDim_,
 	dim3 blockDim_,
 	IsSurfaceGrid isSurfaceGrid,
-	ParticleIndexInfoGrid particleIndexInfoGrid,
+	ParticleIndexRangeGrid particleIndexRangeGrid,
 	ParticleArray particleArray,
-	VertexGrid vertexGrid,
+	ScalarFieldGrid ScalarFieldGrid,
 	GridInfo spatialGridInfo,
 	GridInfo scalarGridInfo,
 	SimParam params)
 {
 	// not good enough.
-	updateScalarGridValuesStd << <gridDim_, blockDim_ >> > (isSurfaceGrid, particleIndexInfoGrid,
-		particleArray, vertexGrid, spatialGridInfo, scalarGridInfo, params);
+	updateScalarGridValuesStd << <gridDim_, blockDim_ >> > (isSurfaceGrid, particleIndexRangeGrid,
+		particleArray, ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
 	cudaDeviceSynchronize();
 }
 
@@ -464,7 +462,7 @@ extern "C"
 void launchCompactSurfaceVertex(
 	dim3 gridDim_,
 	dim3 blockDim_,
-	SurfaceVertexIndexArray svIndexArray,
+	SurfaceVerticesIndexArray svIndexArray,
 	IsSurfaceGrid isSurfaceGridScan,
 	IsSurfaceGrid isSurfaceGrid,
 	SimParam params)
@@ -477,18 +475,18 @@ extern "C"
 void launchUpdateScalarGridValuesCompacted(
 	dim3 gridDim_,
 	dim3 blockDim_,
-	SurfaceVertexIndexArray svIndexArray,
+	SurfaceVerticesIndexArray svIndexArray,
 	uint numSurfaceVertices, 
-	ParticleIndexInfoGrid particleIndexInfoGrid,
+	ParticleIndexRangeGrid particleIndexRangeGrid,
 	ParticleArray particleArray,
-	VertexGrid vertexGrid,
+	ScalarFieldGrid ScalarFieldGrid,
 	GridInfo spatialGridInfo,
 	GridInfo scalarGridInfo,
 	SimParam params)
 {
 	// extra branches are avoided.
 	updateScalarGridValuesCompacted << <gridDim_, blockDim_ >> > (svIndexArray, numSurfaceVertices,
-		particleIndexInfoGrid, particleArray, vertexGrid, spatialGridInfo, scalarGridInfo, params);
+		particleIndexRangeGrid, particleArray, ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
 	cudaDeviceSynchronize();
 }
 
@@ -496,9 +494,9 @@ extern "C"
 void launchDetectValidSurfaceCubes(
 	dim3 gridDim_,
 	dim3 blockDim_,
-	SurfaceVertexIndexArray svIndexArray,
+	SurfaceVerticesIndexArray svIndexArray,
 	uint numSurfaceVertices,
-	VertexGrid vGrid,
+	ScalarFieldGrid vGrid,
 	IsValidSurfaceGrid isValidSurfaceGrid,
 	NumVerticesGrid numVerticesGrid,
 	IsSurfaceGrid isSfGrid,
@@ -527,18 +525,38 @@ extern "C"
 void launchGenerateTriangles(
 	dim3 gridDim_,
 	dim3 blockDim_,
-	SurfaceVertexIndexArray surfaceIndexInGridArray,
+	SurfaceVerticesIndexArray surfaceIndexInGridArray,
 	ValidSurfaceIndexArray validIndexInSurfaceArray,
 	GridInfo scGridInfo,
 	NumVerticesGrid numVerticesGrid,
-	VertexGrid vertexGrid,
+	ScalarFieldGrid ScalarFieldGrid,
 	Float3Grid posGrid,
 	Float3Grid norGrid,
 	SimParam params)
 {
 	generateTriangles << <gridDim_, blockDim_ >> > (surfaceIndexInGridArray,
-		validIndexInSurfaceArray, scGridInfo, numVerticesGrid, vertexGrid, posGrid, norGrid, params);
+		validIndexInSurfaceArray, scGridInfo, numVerticesGrid, ScalarFieldGrid, posGrid, norGrid, params);
 	cudaDeviceSynchronize();
+}
+
+extern "C"
+uint launchThrustExclusivePrefixSumScan(uint* output, uint* input, uint numElements)
+{
+	//! exclusive prefix sum.
+	thrust::exclusive_scan(
+		thrust::device_ptr<uint>(input),
+		thrust::device_ptr<uint>(input + numElements),
+		thrust::device_ptr<uint>(output));
+	cudaDeviceSynchronize();
+
+	uint lastElement = 0;
+	uint lastElementScan = 0;
+	checkCudaErrors(cudaMemcpy((void *)&lastElement, (void *)(input + numElements - 1),
+		sizeof(uint), cudaMemcpyDeviceToHost));
+	checkCudaErrors(cudaMemcpy((void *)&lastElementScan, (void *)(output + numElements - 1),
+		sizeof(uint), cudaMemcpyDeviceToHost));
+	uint sum = lastElement + lastElementScan;
+	return sum;
 }
 
 //! --------------------------------------Spatial grid establish------------------------------------
@@ -588,7 +606,7 @@ void calcParticlesHashKernel(
 //! func: find start index and end index for each cell.
 __global__
 void findCellRangeKernel(
-	ParticleIndexInfoGrid particlesIndexInforArray,	// output, each cells' start index and end index.
+	ParticleIndexRangeGrid particlesIndexRangerArray,	// output, each cells' start index and end index.
 	uint numParticles,									// input, number of particles.
 	uint *gridParticleHash)								// input, particles' hash value array.
 {
@@ -614,21 +632,22 @@ void findCellRangeKernel(
 	{
 		if (index == 0 || hashValue != sharedHash[threadIdx.x])
 		{
-			particlesIndexInforArray.grid[hashValue].start = index;
+			particlesIndexRangerArray.grid[hashValue].start = index;
 			if (index > 0)
-				particlesIndexInforArray.grid[sharedHash[threadIdx.x]].end = index;
+				particlesIndexRangerArray.grid[sharedHash[threadIdx.x]].end = index;
 		}
 
 		if (index == numParticles - 1)
-			particlesIndexInforArray.grid[hashValue].end = index + 1;
+			particlesIndexRangerArray.grid[hashValue].end = index + 1;
 	}
 }
 
 void launchSpatialGridBuilding(
 	ParticleArray particlesArray,
+	ScalarFieldGrid densitiesArray,
 	uint numParticles,
-	ParticleIndexInfoGrid particlesIndexInforArray,
-	DensityGrid densityGrid,
+	ParticleIndexRangeGrid particlesIndexRangerArray,
+	DensityGrid flagGrid,
 	GridInfo spatialGridInfo)
 {
 	//! memory allocation for particles' hash value's storage.
@@ -642,23 +661,25 @@ void launchSpatialGridBuilding(
 
 	//! step1: computation of hash value of particles.
 	calcParticlesHashKernel << <numBlocks, numThreads >> > (
-		dGridParticleHash, particlesArray, numParticles, densityGrid, spatialGridInfo);
+		dGridParticleHash, particlesArray, numParticles, flagGrid, spatialGridInfo);
 	getLastCudaError("calcParticlesHashKernel");
 	cudaDeviceSynchronize();
 
 	//! step2: sort the particle according to their hash value.
+	thrust::device_ptr<ParticlePosition> posPtr(particlesArray.grid);
+	thrust::device_ptr<ScalarValue> denPtr(densitiesArray.grid);
 	thrust::sort_by_key(
 		thrust::device_ptr<unsigned int>(dGridParticleHash),
 		thrust::device_ptr<unsigned int>(dGridParticleHash + numParticles),
-		thrust::device_ptr<SimpleParticle>(particlesArray.grid));
+		thrust::make_zip_iterator(thrust::make_tuple(posPtr, denPtr)));
 	getLastCudaError("sort_by_key");
 	cudaDeviceSynchronize();
 
 	//! step3: find start index and end index of each cell.
 	// 0xffffffff, need to be attentioned.
 	unsigned int memSize = sizeof(unsigned int) * (numThreads + 1);
-	cudaMemset(particlesIndexInforArray.grid, 0xffffffff, particlesIndexInforArray.size * sizeof(IndexInfo));
-	findCellRangeKernel << < numBlocks, numThreads, memSize >> > (particlesIndexInforArray, numParticles,
+	cudaMemset(particlesIndexRangerArray.grid, 0xffffffff, particlesIndexRangerArray.size * sizeof(IndexRange));
+	findCellRangeKernel << < numBlocks, numThreads, memSize >> > (particlesIndexRangerArray, numParticles,
 		dGridParticleHash);
 	getLastCudaError("findCellRangeKernel");
 	cudaDeviceSynchronize();
