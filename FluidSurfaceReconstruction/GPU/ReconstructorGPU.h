@@ -25,20 +25,33 @@ public:
 	std::vector<double> getTimeConsumingSequence() const;
 
 	virtual std::string getAlgorithmType() = 0;
-	
-protected:
 
-	virtual void onBeginFrame(unsigned int frameIndex);
+	void setOutputVisualizeFile(bool flag);
+	
+private:
+
+	void beginFrame(unsigned int frameIndex);
+
+	void frameMove(unsigned int frameIndex);
+
+	void endFrame(unsigned int frameIndex);
+
+	void initialization();
+
+	void finalization();
+
+protected:
+	virtual void onBeginFrame(unsigned int frameIndex) = 0;
 
 	virtual void onFrameMove(unsigned int frameIndex) = 0;
 
-	virtual void onEndFrame(unsigned int frameIndex);
+	virtual void onEndFrame(unsigned int frameIndex) = 0;
 
-	//! finalization.
-	virtual void onInitialization();
+	virtual void saveMiddleDataToVisFile(unsigned int frameIndex) = 0;
 
-	//! initialization.
-	virtual void onFinalization();
+	virtual void onInitialization() = 0;
+
+	virtual void onFinalization() = 0;
 
 protected:
 
@@ -65,6 +78,7 @@ protected:
 	void generationOfSurfaceMeshUsingMC();
 
 protected:
+	bool mSaveVisFile;										//! tag for saving visualization file(.vis)
 	Timer::ptr mTimer;										//! timer for recording.
 	std::string mFilePattern;								//! particles' file name's pattern.
 	std::string mFileDirectory;								//! particles' file directory.
@@ -91,7 +105,7 @@ protected:
 	DensityGrid mDeviceFlagGrid;							//! virtual denisty field grid.
 	IsSurfaceGrid mDeviceIsSurfaceGrid;						//! whether the vertex is in surface region or not.
 	IsSurfaceGrid mDeviceIsSurfaceGridScan;					//! exclusive prefix sum of mDeviceIsSurfaceGrid.
-	SurfaceVerticesIndexArray mDeviceSurfaceVerticesIndexArray;	//! compacted surface vertices' indices array.
+	SurfaceVerticesIndexArray mDeviceSurfaceVerticesIndexArray;//! compacted surface vertices' indices array.
 	IsValidSurfaceGrid mDeviceIsValidSurfaceGrid;			//! whether the cube is valid or not.
 	IsValidSurfaceGrid mDeviceIsValidSurfaceGridScan;		//! exculsive prefix sum of mDeviceIsValidSurfaceGrid.
 	NumVerticesGrid mDeviceNumVerticesGrid;					//! number of each cube's vertices.

@@ -2,7 +2,7 @@
 
 #include "ReconstructorGPU.h"
 
-class ReconstructorGPUOursZB05 : public ReconstructorGPU
+class ReconstructorGPUOursZB05 final : public ReconstructorGPU
 {
 public:
 	typedef std::shared_ptr<ReconstructorGPUOursZB05> ptr;
@@ -15,17 +15,19 @@ public:
 	
 protected:
 
-	virtual void onBeginFrame(unsigned int frameIndex);
+	virtual void onBeginFrame(unsigned int frameIndex) override;
 
-	virtual void onFrameMove(unsigned int frameIndex);
+	virtual void onFrameMove(unsigned int frameIndex) override;
 
-	virtual void onEndFrame(unsigned int frameIndex);
+	virtual void onEndFrame(unsigned int frameIndex) override;
 
-	//! finalization.
 	virtual void onInitialization() override;
 
-	//! initialization.
 	virtual void onFinalization() override;
+
+	virtual void saveMiddleDataToVisFile(unsigned int frameIndex) override;
+
+private:
 
 	//! estimation of surface vertices.
 	void estimationOfSurfaceVertices();

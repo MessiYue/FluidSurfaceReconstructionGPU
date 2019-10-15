@@ -4,22 +4,17 @@
 #include "ReconstructionCUDA.cuh"
 
 ReconstructorGPUOursZB05::ReconstructorGPUOursZB05(const std::string & directory, const std::string & filePattern,
-	unsigned int from, unsigned int to)
-	: ReconstructorGPU(directory, filePattern, from, to) 
+	unsigned int from, unsigned int to) : ReconstructorGPU(directory, filePattern, from, to) 
 {
-	onInitialization();
 }
 
-ReconstructorGPUOursZB05::~ReconstructorGPUOursZB05()
-{
-	onFinalization();
-}
+ReconstructorGPUOursZB05::~ReconstructorGPUOursZB05() {}
 
 std::string ReconstructorGPUOursZB05::getAlgorithmType() { return std::string("Our Algorithm using ZB05 kernel"); }
 
 void ReconstructorGPUOursZB05::onBeginFrame(unsigned int frameIndex)
 {
-	ReconstructorGPU::onBeginFrame(frameIndex);
+	//! nothing to do.
 }
 
 void ReconstructorGPUOursZB05::onFrameMove(unsigned int frameIndex)
@@ -50,29 +45,122 @@ void ReconstructorGPUOursZB05::onFrameMove(unsigned int frameIndex)
 
 }
 
-void ReconstructorGPUOursZB05::onEndFrame(unsigned int frameIndex)
+void ReconstructorGPUOursZB05::onEndFrame(unsigned int frameIndex) 
 {
-	ReconstructorGPU::onEndFrame(frameIndex);
+	//! nothing to do.
 }
 
 void ReconstructorGPUOursZB05::onInitialization()
-{
-	ReconstructorGPU::onInitialization();
-	
+{	
 	//! isocontour value.
 	mSimParam.isoValue = -0.0001f;
 	//! search extent.
-	mSimParam.expandExtent = 3;
+	mSimParam.expandExtent = 2;
 	//! 
 	mSimParam.scSpGridResRatio = 2;
 	//!
 	mSimParam.spatialCellSizeScale = 1.0;
 }
 
-void ReconstructorGPUOursZB05::onFinalization()
+void ReconstructorGPUOursZB05::onFinalization() 
 {
-	ReconstructorGPU::onFinalization();
-	
+	//! nothing to do.
+}
+
+void ReconstructorGPUOursZB05::saveMiddleDataToVisFile(unsigned int frameIndex)
+{
+	//! save middle data for visualization.
+	char basename[256];
+	snprintf(basename, sizeof(basename), mFilePattern.c_str(), frameIndex);
+	std::string path = mFileDirectory + std::string(basename) + ".vis";
+	std::ofstream file(path.c_str());
+	if (file)
+	{
+		std::cout << "Writing to " << path << "...\n";
+
+		//! spatial hashing grid bounding box.
+		file << mSpatialGridInfo.minPos.x << ' ' << mSpatialGridInfo.minPos.y << ' '
+			<< mSpatialGridInfo.minPos.z << std::endl;
+		file << mSpatialGridInfo.maxPos.x << ' ' << mSpatialGridInfo.maxPos.y << ' ' 
+			<< mSpatialGridInfo.maxPos.z << std::endl;
+		file << mSpatialGridInfo.resolution.x << ' ' << mSpatialGridInfo.resolution.y << ' '
+			<< mSpatialGridInfo.resolution.z << std::endl;
+		file << mSpatialGridInfo.cellSize << std::endl;
+
+		//! scalar field grid bounding box.
+		file << mScalarFieldGridInfo.minPos.x << ' ' << mScalarFieldGridInfo.minPos.y 
+			<< ' ' << mScalarFieldGridInfo.minPos.z << std::endl;
+		file << mScalarFieldGridInfo.maxPos.x << ' ' << mScalarFieldGridInfo.maxPos.y
+			<< ' ' << mScalarFieldGridInfo.maxPos.z << std::endl;
+		file << mScalarFieldGridInfo.resolution.x << ' ' << mScalarFieldGridInfo.resolution.y << ' '
+			<< mScalarFieldGridInfo.resolution.z << std::endl;
+		file << mScalarFieldGridInfo.cellSize << std::endl;
+
+		//! particles .xyz file path.
+		file << (std::string(basename) + ".xyz") << std::endl;
+
+		//! flag of spatial hashing grid.
+		std::vector<float> flagArray;
+		flagArray.resize(mDeviceFlagGrid.size);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(flagArray.data()), mDeviceFlagGrid.grid,
+			sizeof(float) * mDeviceFlagGrid.size, cudaMemcpyDeviceToHost));
+		unsigned int numOfValidFlag = 0;
+		for (size_t i = 0; i < flagArray.size(); ++i)
+		{
+			if (flagArray[i] > 0.0f)
+				++numOfValidFlag;
+		}
+		file << numOfValidFlag << std::endl;
+		for (size_t i = 0; i < flagArray.size(); ++i)
+		{
+			if (flagArray[i] > 0.0f)
+				file << i << ' ';
+		}
+		if(flagArray.size() > 0)
+			file << std::endl;
+		std::vector<float>().swap(flagArray);
+
+		//! smoothed particles, none.
+		file << 0 << std::endl;
+
+		//! surface vertices' indcies of scalar field grid.
+		file << mNumSurfaceVertices << std::endl;
+		std::vector<uint> surfaceVerticesIndexArray;
+		surfaceVerticesIndexArray.resize(mNumSurfaceVertices);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceVerticesIndexArray.data()),
+			mDeviceSurfaceVerticesIndexArray.grid, sizeof(uint) * mNumSurfaceVertices, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumSurfaceVertices; ++i)
+			file << surfaceVerticesIndexArray[i] << ' ';
+		if(mNumSurfaceVertices > 0)
+			file << std::endl;
+		std::vector<uint>().swap(surfaceVerticesIndexArray);
+
+		//! surface particles, none.
+		file << 0 << std::endl;
+
+		//! valid surface cubes.
+		file << mNumValidSurfaceCubes << std::endl;
+		std::vector<uint> validCubesIndexArray;
+		validCubesIndexArray.resize(mNumValidSurfaceCubes);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(validCubesIndexArray.data()),
+			mDeviceValidSurfaceIndexArray.grid, sizeof(uint) * mDeviceValidSurfaceIndexArray.size, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumValidSurfaceCubes; ++i)
+			file << validCubesIndexArray[i] << ' ';
+		if(mNumValidSurfaceCubes > 0)
+			file << std::endl;
+
+		//! surface mesh file.
+		file << (std::string(basename) + ".obj") << std::endl;
+
+		//! neighbourhood extent radius.
+		file << mSimParam.smoothingRadius << std::endl;
+
+		file.close();
+
+		std::cout << "Finish writing " << path << ".\n";
+	}
+	else
+		std::cerr << "Failed to save the file: " << path << std::endl;
 }
 
 void ReconstructorGPUOursZB05::estimationOfSurfaceVertices()

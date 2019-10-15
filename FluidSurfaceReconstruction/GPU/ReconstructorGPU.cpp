@@ -14,7 +14,9 @@
 ReconstructorGPU::ReconstructorGPU(const std::string & directory, const std::string & filePattern,
 	unsigned int from, unsigned int to) : 
 	mFileDirectory(directory), mFilePattern(filePattern),
-	mFrameFrom(from), mFrameTo(to) {}
+	mFrameFrom(from), mFrameTo(to), mSaveVisFile(false)
+{
+}
 
 ReconstructorGPU::~ReconstructorGPU() {}
 
@@ -26,6 +28,9 @@ void ReconstructorGPU::reconstruct()
 		return;
 	}
 
+	//! initialization.
+	initialization();
+
 	mTimeConsuming.clear();
 
 	//! reconstructing frame by frame.
@@ -33,7 +38,7 @@ void ReconstructorGPU::reconstruct()
 	{
 		std::cout << "\n*************************** Frame " << frameIndex << " ***************************\n";
 		//! at the begining of each frame, do some preparation here.
-		onBeginFrame(frameIndex);
+		beginFrame(frameIndex);
 
 		std::cout << "Number of particles: " << static_cast<double>(mNumParticles) / 1000.0 << " k.\n";
 
@@ -44,19 +49,26 @@ void ReconstructorGPU::reconstruct()
 		spatialHashingGridBuilding();
 
 		//! reconstruct the surface.
-		onFrameMove(frameIndex);
+		frameMove(frameIndex);
 
 		double record = mTimer->durationInMilliseconds();
 		mTimeConsuming.push_back(record);
 		
 		std::cout << "Reconstructing Frame" << frameIndex << " took " << record << " milliseconds.\n";
 
+		//! save middle data to file for visualization.
+		if (mSaveVisFile)
+			saveMiddleDataToVisFile(frameIndex);
+
 		//! at the end of each frame, do some post-process here.
-		onEndFrame(frameIndex);
+		endFrame(frameIndex);
 	}
 
 	//! save the time consumed to file.
 	saveTimeConsumingRecordToFile();
+
+	//! finalization.
+	finalization();
 }
 
 SimParam ReconstructorGPU::getSimulationParameters() const { return mSimParam; }
@@ -65,7 +77,12 @@ unsigned int ReconstructorGPU::getNumberOfParticles() const { return mNumParticl
 
 std::vector<double> ReconstructorGPU::getTimeConsumingSequence() const { return mTimeConsuming; }
 
-void ReconstructorGPU::onBeginFrame(unsigned int frameIndex)
+void ReconstructorGPU::setOutputVisualizeFile(bool flag)
+{
+	mSaveVisFile = flag;
+}
+
+void ReconstructorGPU::beginFrame(unsigned int frameIndex)
 {
 	//! first of all, read the particles from file.
 	std::vector<ParticlePosition> particles;
@@ -96,9 +113,18 @@ void ReconstructorGPU::onBeginFrame(unsigned int frameIndex)
 	CUDA_CREATE_GRID_3D(mDeviceIsSurfaceGrid, mScalarFieldGridInfo.resolution, uint);
 	CUDA_CREATE_GRID_3D(mDeviceIsSurfaceGridScan, mScalarFieldGridInfo.resolution, uint);
 	CUDA_CREATE_GRID_3D(mDeviceSurfaceVerticesIndexArray, mScalarFieldGridInfo.resolution, uint);
+
+	//! extra action for sub class.
+	onBeginFrame(frameIndex);
 }
 
-void ReconstructorGPU::onEndFrame(unsigned int frameIndex)
+void ReconstructorGPU::frameMove(unsigned int frameIndex)
+{
+	//! move on the frame.
+	onFrameMove(frameIndex);
+}
+
+void ReconstructorGPU::endFrame(unsigned int frameIndex)
 {
 	//! first of all, save the mesh to file.
 	saveFluidSurfaceObjToFile(frameIndex);
@@ -122,6 +148,8 @@ void ReconstructorGPU::onEndFrame(unsigned int frameIndex)
 	CUDA_DESTROY_GRID(mDeviceVertexArray);
 	CUDA_DESTROY_GRID(mDeviceNormalArray);
 
+	//! extra action for sub class.
+	onEndFrame(frameIndex);
 }
 
 void ReconstructorGPU::readParticlesFromFile(unsigned int frameIndex,
@@ -173,6 +201,14 @@ void ReconstructorGPU::readParticlesFromFile(unsigned int frameIndex,
 		std::stringstream ss5;
 		ss5 << line;
 		ss5 >> mSimParam.particleMass;
+
+		//! expansion.
+		mSpatialGridInfo.minPos.x -= mSpatialGridInfo.cellSize;
+		mSpatialGridInfo.minPos.y -= mSpatialGridInfo.cellSize;
+		mSpatialGridInfo.minPos.z -= mSpatialGridInfo.cellSize;
+		mSpatialGridInfo.maxPos.x += mSpatialGridInfo.cellSize;
+		mSpatialGridInfo.maxPos.y += mSpatialGridInfo.cellSize;
+		mSpatialGridInfo.maxPos.z += mSpatialGridInfo.cellSize;
 
 		//! calculation of resoluation.
 		mSpatialGridInfo.resolution.x = (mSpatialGridInfo.maxPos.x - mSpatialGridInfo.minPos.x)
@@ -325,7 +361,7 @@ void ReconstructorGPU::saveTimeConsumingRecordToFile()
 
 }
 
-void ReconstructorGPU::onInitialization()
+void ReconstructorGPU::initialization()
 {
 	//! timer for recording.
 	mTimer = std::shared_ptr<Timer>(new Timer());
@@ -356,15 +392,21 @@ void ReconstructorGPU::onInitialization()
 
 	INITGRID_ZERO(mDeviceVertexArray);
 	INITGRID_ZERO(mDeviceNormalArray);
+
+	//! extra action for sub class.
+	onInitialization();
 }
 
-void ReconstructorGPU::onFinalization()
+void ReconstructorGPU::finalization()
 {
 	//! release of auxiliary textures.
 	safeCudaFree((void**)&mDeviceEdgeTable);
 	safeCudaFree((void**)&mDeviceEdgeIndicesOfTriangleTable);
 	safeCudaFree((void**)&mDeviceNumVerticesTable);
 	safeCudaFree((void**)&mDeviceVertexIndicesOfEdgeTable);
+
+	//! extra action for sub class.
+	onFinalization();
 }
 
 void ReconstructorGPU::detectionOfValidSurfaceCubes()

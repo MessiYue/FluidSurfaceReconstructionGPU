@@ -14,6 +14,7 @@ int main()
 			"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
 			"frame_%06d", 0, 30));
 
+	reconstructor->setOutputVisualizeFile(true);
 	reconstructor->reconstruct();
 
     return 0;
