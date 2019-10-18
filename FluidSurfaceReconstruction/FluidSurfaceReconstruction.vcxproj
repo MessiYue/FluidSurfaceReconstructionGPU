@@ -87,6 +87,7 @@
     <ClCompile Include="GPU\MarchingCubesHelper.cpp" />
     <ClCompile Include="GPU\MathVector.cpp" />
     <ClCompile Include="GPU\ReconstructorGPU.cpp" />
+    <ClCompile Include="GPU\ReconstructorGPUOursYu13.cpp" />
     <ClCompile Include="GPU\ReconstructorGPUOursZB05.cpp" />
     <ClCompile Include="GPU\Timer.cpp" />
   </ItemGroup>
@@ -96,6 +97,7 @@
     <ClInclude Include="GPU\MarchingCubesHelper.h" />
     <ClInclude Include="GPU\MathVector.h" />
     <ClInclude Include="GPU\ReconstructorGPU.h" />
+    <ClInclude Include="GPU\ReconstructorGPUOursYu13.h" />
     <ClInclude Include="GPU\ReconstructorGPUOursZB05.h" />
     <ClInclude Include="GPU\ReconstructionCUDA.cuh" />
     <ClInclude Include="GPU\SVD3.cuh" />

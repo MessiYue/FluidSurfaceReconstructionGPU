@@ -21,9 +21,13 @@ struct SimParam
 	float particleMass;					// particle mass.
 	float smoothingRadius;				// effective radius.
 	float smoothingRadiusSq;			// square of effective radius.
+	float smoothingRadiusInv;			// 1.0 / smoothingRadius.
+	float lambdaForSmoothed;			//
+	float anisotropicRadius;			// r = 2 * smoothingRadius.
 	float isoValue;						// isocontour value
 	uint scSpGridResRatio;				// spatial hashing grid res / scalar field grid res.
 	uint expandExtent;					// expandsion extent.
+	uint minNumNeighbors;				// minimal number of neighbors for non isolated particle.
 	float spatialCellSizeScale;			// scaling for spatial hashing grid cell size.
 };
 
@@ -46,6 +50,14 @@ struct ParticlePosition { float3 pos; };
 //! scalar value.
 struct ScalarValue { float value; };
 
+//! 3x3 matrix.
+struct MatrixValue 
+{
+	float a11, a12, a13;
+	float a21, a22, a23;
+	float a31, a32, a33;
+};
+
 //! grid's size information.
 struct GridInfo
 {
@@ -67,14 +79,17 @@ typedef Grid<uint> UintGrid;
 typedef Grid<float> FloatGrid;
 typedef Grid<float3> Float3Grid;
 typedef Grid<float> DensityGrid;
-typedef Grid<uint> IsSurfaceGrid;
 typedef Grid<ParticlePosition> ParticleArray;
 typedef Grid<IndexRange> ParticleIndexRangeGrid;
-typedef Grid<ScalarValue>  ScalarFieldGrid;							
+typedef Grid<ScalarValue>  ScalarFieldGrid;			
+typedef Grid<uint> IsSurfaceGrid;
+typedef Grid<uint> NumSurfaceParticlesGrid;
 typedef Grid<uint> NumVerticesGrid;								// number of vertices.
 typedef Grid<uint> IsValidSurfaceGrid;							// whethe valid or not for cells.
+typedef Grid<uint> SurfaceParticlesIndexArray;
 typedef Grid<uint> SurfaceVerticesIndexArray;					// compacted surface vertices' indices.
 typedef Grid<uint> ValidSurfaceIndexArray;						// compacted valid surface cells' indices.
+typedef Grid<MatrixValue> MatrixArray;							
 
 inline void safeFree(void** ptr)
 {

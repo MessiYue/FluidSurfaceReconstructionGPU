@@ -187,6 +187,7 @@ void ReconstructorGPU::readParticlesFromFile(unsigned int frameIndex,
 		ss3 << line;
 		ss3 >> mSimParam.smoothingRadius;
 
+		mSimParam.smoothingRadiusInv = 1.0 / mSimParam.smoothingRadius;
 		mSimParam.smoothingRadiusSq = mSimParam.smoothingRadius * mSimParam.smoothingRadius;
 		mSpatialGridInfo.cellSize = mSimParam.smoothingRadius * mSimParam.spatialCellSizeScale;
 

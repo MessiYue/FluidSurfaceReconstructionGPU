@@ -7,7 +7,8 @@ class ReconstructorGPUOursZB05 final : public ReconstructorGPU
 public:
 	typedef std::shared_ptr<ReconstructorGPUOursZB05> ptr;
 
-	ReconstructorGPUOursZB05(const std::string &directory, const std::string &filePattern, unsigned int from, unsigned int to);
+	ReconstructorGPUOursZB05(const std::string &directory, const std::string &filePattern,
+		unsigned int from, unsigned int to);
 
 	virtual ~ReconstructorGPUOursZB05();
 

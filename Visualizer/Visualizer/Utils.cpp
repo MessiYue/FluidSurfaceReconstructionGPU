@@ -206,7 +206,7 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 
 	auto particleColors = particles->add_vertex_property<vec3>("v:color");
 	for (auto v : particles->vertices())
-		particleColors[v] = /*vec3(0.4f, 0.8f, 0.8f)*/vec3(0.514f, 0.44f, 1.0f);
+		particleColors[v] = vec3(0.0f, 0.0f, 0.9f);
 	particlesDrawable->update_color_buffer(particleColors.vector());
 
 	particlesDrawable->set_per_vertex_color(true);
@@ -223,7 +223,7 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 
 	auto sParticleColors = smoothedParticles->add_vertex_property<vec3>("v:color");
 	for (auto v : smoothedParticles->vertices())
-		sParticleColors[v] = vec3(0.514f, 0.44f, 1.0f);
+		sParticleColors[v] = vec3(0.9f, 0.0f, 0.0f);
 	smoothedParDrawable->update_color_buffer(sParticleColors.vector());
 
 	smoothedParDrawable->set_per_vertex_color(true);

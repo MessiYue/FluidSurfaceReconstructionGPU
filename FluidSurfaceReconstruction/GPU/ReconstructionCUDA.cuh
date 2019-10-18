@@ -7,9 +7,9 @@
 #include "Defines.h"
 #include "CudaUtils.h"
 
-//! epsilon pof float number. 
-extern "C" __constant__ float EPSILON_;
 const float EPSILON_CPU = 1.0e-7;
+extern "C" __constant__ float SIGMA;
+extern "C" __constant__ float EPSILON_;
 
 //! ----------------------------------------launching functions--------------------------------------
 
@@ -63,7 +63,7 @@ void launchUpdateScalarGridValuesCompacted(
 	uint numSurfaceVertices,							// number of surface vertices of grid.
 	ParticleIndexRangeGrid particleIndexRangeGrid,		// paritcle index information grid.
 	ParticleArray particleArray,						// particles array.
-	ScalarFieldGrid ScalarFieldGrid,								// vertices of grid.
+	ScalarFieldGrid ScalarFieldGrid,					// vertices of grid.
 	GridInfo spatialGridInfo,							// spatial hashing grid information.
 	GridInfo scalarGridInfo,							// scalar field grid information.
 	SimParam params);							
@@ -108,6 +108,78 @@ launchGenerateTriangles(
 extern "C" uint 
 launchThrustExclusivePrefixSumScan(uint* output, uint* input, uint numElements);
 
+//! ------------------------------------ functions for anisotropic kernel------------------------------
+
+//! func: calculation of mean and smoothed particles.
+extern "C" void
+launchCalculationOfMeanAndSmoothParticles(
+	dim3 gridDim_,										// cuda grid dimension.
+	dim3 blockDim_,										// cuda block dimension.
+	SimParam simParam,									// simulation parameter.
+	ParticleArray particleArray,						// particles array.
+	ParticleArray meanParticleArray,					// mean postions of particles.
+	ParticleArray smoothedParticleArray,				// smoothed positions of particles.
+	ParticleIndexRangeGrid particleIndexRangeGrid,      // paritcle index information grid.
+	GridInfo spatialGridInfo);
+
+//! func: estimation of surface vertices and particles.
+extern "C" void
+launchEstimationOfSurfaceVerticesAndParticles(
+	dim3 gridDim_,										// cuda grid dimension.
+	dim3 blockDim_,										// cuda block dimension.
+	SimParam simParam,									// simulation parameter.
+	DensityGrid flagGrid,								// virtual density grid of particles.
+	IsSurfaceGrid isSurfaceGrid,						// surface tag field.
+	NumSurfaceParticlesGrid numSurfaceParticlesGrid,	// number of surface particles.
+	ParticleIndexRangeGrid particleIndexRangeGrid,		// paritcle index information grid.
+	GridInfo spatialGridInfo);
+
+//! func: compactation of surface vertices and particles.
+extern "C" void
+launchCompactationOfSurfaceVerticesAndParticles(
+	dim3 gridDim_,											// cuda grid dimension.
+	dim3 blockDim_,											// cuda block dimension.
+	SimParam simParam,										// simulation parameter.
+	IsSurfaceGrid isSurfaceGrid,							// surface tag field.
+	IsSurfaceGrid isSurfaceGridScan,						// exclusive prefix sum of isSurfaceGrid
+	NumSurfaceParticlesGrid numSurfaceParticlesGrid,		// number of surface particles.
+	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,	// exclusive prefix sum of numSurfaceParticlesGrid.
+	ParticleIndexRangeGrid particleIndexRangeGrid,			// paritcle index information grid.
+	SurfaceVerticesIndexArray surfaceVerticesIndexArray,
+	SurfaceParticlesIndexArray surfaceParticlesIndexArray);
+
+//! func: calculation of transform matrices for each surface particle.
+extern "C" void
+launchCalculationOfTransformMatricesForParticles(
+	dim3 gridDim_,											// cuda grid dimension.
+	dim3 blockDim_,											// cuda block dimension.
+	SimParam simParam,										// simulation parameter.
+	GridInfo spatialGridInfo,								// spatial hashing grid information.
+	ParticleArray meanParticleArray,						// mean postions of particles.
+	ParticleArray particleArray,							// particles array.
+	ParticleIndexRangeGrid particleIndexRangeGrid,			// paritcle index information grid.
+	SurfaceParticlesIndexArray surfaceParticlesIndexArray,	// surface particles' indices.
+	MatrixArray svdMatricesArray);							// transform matrices for each surface particle.
+
+//! func: computation of scalar field grid using anisotropic kernel.
+extern "C" void
+launchComputationOfScalarFieldGrid(
+	dim3 gridDim_,											// cuda grid dimension.
+	dim3 blockDim_,											// cuda block dimension.
+	SimParam simParam,										// simulation parameter.
+	uint numSurfaceVertices,								// number of surface vertices.
+	GridInfo scalarGridInfo,								// scalar field grid information.
+	GridInfo spatialGridInfo,								// spatial hashing grid information.
+	MatrixArray svdMatricesArray,							// transform matrices for each surface particle.
+	ParticleArray smoothedParticleArray,					// smoothed postions of particles.
+	ScalarFieldGrid particlesDensityArray,					// particle densities array.
+	ParticleIndexRangeGrid particleIndexRangeGrid,			// paritcle index information grid.
+	SurfaceVerticesIndexArray surfaceVerticesIndexArray,	// surface vertices' indices.
+	NumSurfaceParticlesGrid numSurfaceParticlesGrid,		// number of surface particles.
+	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,	// exclusive prefix sum of numSurfaceParticlesGrid.
+	ScalarFieldGrid ScalarFieldGrid);						// scalar field grid.
+
+
 //! -----------------------------------Spatial Grid establish------------------------------------------
 //! func: establish of spatial grid for neighborhood researching.
 extern "C" void 
@@ -148,6 +220,37 @@ float weightFunc2(float distSq, float EffectiveRadiusSq)
 	float t4 = t2 * t2;
 	float t8 = t4 * t4;
 	return t8 - t4 + 0.1875f;
+}
+
+//! func: calculation of wij for equation (11) from Yu's paper.
+inline __host__ __device__
+float wij(float distance, float r)
+{
+	if (distance < r)
+	{
+		float s = distance / r;
+		return 1.0f - s * s * s;
+	}
+	else
+		return 0.0f;
+}
+
+//! func: anisotropic kernel function.
+inline __host__ __device__
+float anisotropicW(float3 r, MatrixValue g, float det)
+{
+	//! g * r.
+	float3 target;
+	target.x = r.x * g.a11 + r.y * g.a12 + r.z * g.a13;
+	target.y = r.x * g.a21 + r.y * g.a22 + r.z * g.a23;
+	target.z = r.x * g.a31 + r.y * g.a32 + r.z * g.a33;
+
+	float dist = length(target);
+	float distSq = dist * dist;
+	if (distSq >= 1.0)
+		return 0.0f;
+	float x = 1.0 - distSq;
+	return SIGMA * det * x * x * x;
 }
 
 //! ------------------------------------------Common---------------------------------------------
@@ -513,5 +616,42 @@ uint getVertexFlag(uint3 curIndex3D, IntGrid parStartInCellGrid, IntGrid parCoun
 	return vertexFlag;
 }
 
+__device__ __forceinline__
+void matrixMul(
+	float a11, float a12, float a13,
+	float a21, float a22, float a23,
+	float a31, float a32, float a33,
+	float b11, float b12, float b13,
+	float b21, float b22, float b23,
+	float b31, float b32, float b33,
+	float &c11, float &c12, float &c13,
+	float &c21, float &c22, float &c23,
+	float &c31, float &c32, float &c33)
+{
+	c11 = a11 * b11 + a12 * b21 + a13 * b31;
+	c21 = a21 * b11 + a22 * b21 + a23 * b31;
+	c31 = a31 * b11 + a32 * b21 + a33 * b31;
+
+	c12 = a11 * b12 + a12 * b22 + a13 * b32;
+	c22 = a21 * b12 + a22 * b22 + a23 * b32;
+	c32 = a31 * b12 + a32 * b22 + a33 * b32;
+
+	c13 = a11 * b13 + a12 * b23 + a13 * b33;
+	c23 = a21 * b13 + a22 * b23 + a23 * b33;
+	c33 = a31 * b13 + a32 * b23 + a33 * b33;
+}
+
+//! func: calculation of determinant for 3x3 matrix.
+__device__ __forceinline__
+float determinant(const MatrixValue& mat)
+{
+	return
+		mat.a11 * mat.a22 * mat.a33 + 
+		mat.a12 * mat.a23 * mat.a31 + 
+		mat.a13 * mat.a21 * mat.a32 - 
+		mat.a11 * mat.a23 * mat.a32 -
+		mat.a12 * mat.a21 * mat.a33 - 
+		mat.a13 * mat.a22 * mat.a31;
+}
 
 #endif

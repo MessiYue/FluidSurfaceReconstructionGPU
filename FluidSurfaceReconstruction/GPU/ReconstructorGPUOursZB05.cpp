@@ -186,22 +186,28 @@ void ReconstructorGPUOursZB05::compactationOfSurfaceVertices()
 	mNumSurfaceVertices = launchThrustExclusivePrefixSumScan(mDeviceIsSurfaceGridScan.grid,
 		mDeviceIsSurfaceGrid.grid, (uint)mDeviceIsSurfaceGrid.size);
 
-	if (mNumSurfaceVertices <= 0)
+	if (mNumSurfaceVertices == 0)
 	{
 		std::cerr << "No surface vertex detected!\n";
 		return;
 	}
 
-	std::cout << "surface vertices ratio: " << static_cast<double>(mNumSurfaceVertices)
-		/ (mScalarFieldGridInfo.resolution.x * mScalarFieldGridInfo.resolution.y * mScalarFieldGridInfo.resolution.z) << std::endl;
+	std::cout << "surface vertices ratio: " << static_cast<double>(mNumSurfaceVertices) / 
+		(mScalarFieldGridInfo.resolution.x * mScalarFieldGridInfo.resolution.y
+			* mScalarFieldGridInfo.resolution.z) << std::endl;
 
 	//! calculation of grid dim and block dim.
 	dim3 gridDim_, blockDim_;
 	calcGridDimBlockDim(mDeviceIsSurfaceGrid.size, gridDim_, blockDim_);
 
 	//! launch the compactation kernel function.
-	launchCompactSurfaceVertex(gridDim_, blockDim_, mDeviceSurfaceVerticesIndexArray, mDeviceIsSurfaceGridScan,
-		mDeviceIsSurfaceGrid, mSimParam);
+	launchCompactSurfaceVertex(
+		gridDim_,
+		blockDim_,
+		mDeviceSurfaceVerticesIndexArray,
+		mDeviceIsSurfaceGridScan,
+		mDeviceIsSurfaceGrid,
+		mSimParam);
 	getLastCudaError("launch compactationOfSurfaceVertices() failed");
 }
 
@@ -221,8 +227,16 @@ void ReconstructorGPUOursZB05::computationOfScalarFieldGrid()
 	checkCudaErrors(cudaMemset(mDeviceScalarFieldGrid.grid, 0, mDeviceScalarFieldGrid.size * sizeof(ScalarValue)));
 
 	//! launch the computation kernel function.
-	launchUpdateScalarGridValuesCompacted(gridDim_, blockDim_, mDeviceSurfaceVerticesIndexArray,
-		mNumSurfaceVertices, mDeviceCellParticleIndexArray, mDeviceParticlesArray, mDeviceScalarFieldGrid,
-		mSpatialGridInfo, mScalarFieldGridInfo, mSimParam);
+	launchUpdateScalarGridValuesCompacted(
+		gridDim_,
+		blockDim_,
+		mDeviceSurfaceVerticesIndexArray,
+		mNumSurfaceVertices,
+		mDeviceCellParticleIndexArray,
+		mDeviceParticlesArray,
+		mDeviceScalarFieldGrid,
+		mSpatialGridInfo,
+		mScalarFieldGridInfo,
+		mSimParam);
 	getLastCudaError("launch computationOfScalarFieldGrid() failed");
 }
