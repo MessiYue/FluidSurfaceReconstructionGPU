@@ -543,8 +543,8 @@ void estimationOfSurfaceVerticesAndParticles(
 		}
 
 		// collection of surface particles.
-		minSpatialIndex3D = make_int3(curIndex3D.x - 3, curIndex3D.y - 3, curIndex3D.z - 3);
-		maxSpatialIndex3D = make_int3(curIndex3D.x + 3, curIndex3D.y + 3, curIndex3D.z + 3);
+		minSpatialIndex3D = make_int3(curIndex3D.x - 2, curIndex3D.y - 2, curIndex3D.z - 2);
+		maxSpatialIndex3D = make_int3(curIndex3D.x + 2, curIndex3D.y + 2, curIndex3D.z + 2);
 		minSpatialIndex3D = clamp(minSpatialIndex3D, make_int3(0, 0, 0), make_int3(flagGrid.resolution.x - 1,
 			flagGrid.resolution.y - 1, flagGrid.resolution.z - 1));
 		maxSpatialIndex3D = clamp(maxSpatialIndex3D, make_int3(0, 0, 0), make_int3(flagGrid.resolution.x - 1,
@@ -611,6 +611,10 @@ void calculationOfTransformMatricesForParticles(
 	MatrixArray svdMatricesArray)							// output, G matrix for surface particles.
 {
 	uint threadId = getThreadIdGlobal();
+	
+	if (threadId >= surfaceParticlesIndexArray.size)
+		return;
+
 	uint particleIndex = surfaceParticlesIndexArray.grid[threadId];
 	
 	//! original position and mean position.
@@ -733,6 +737,7 @@ void calculationOfTransformMatricesForParticles(
 	}
 
 	svdMatricesArray.grid[threadId] = ret;
+
 }
 
 //! func: computation of scalar field grid using anisotropic kernel.

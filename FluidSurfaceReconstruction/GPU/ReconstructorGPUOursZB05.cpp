@@ -55,9 +55,9 @@ void ReconstructorGPUOursZB05::onInitialization()
 	//! isocontour value.
 	mSimParam.isoValue = -0.0001f;
 	//! search extent.
-	mSimParam.expandExtent = 2;
+	mSimParam.expandExtent = 4;
 	//! 
-	mSimParam.scSpGridResRatio = 2;
+	mSimParam.scSpGridResRatio = 4;
 	//!
 	mSimParam.spatialCellSizeScale = 1.0;
 }

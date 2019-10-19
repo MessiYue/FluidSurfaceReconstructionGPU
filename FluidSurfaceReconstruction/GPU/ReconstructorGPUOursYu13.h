@@ -2,15 +2,15 @@
 
 #include "ReconstructorGPU.h"
 
-class ReconstructorGPUOurYu13 final : public ReconstructorGPU
+class ReconstructorGPUOursYu13 final : public ReconstructorGPU
 {
 public:
-	typedef std::shared_ptr<ReconstructorGPUOurYu13> ptr;
+	typedef std::shared_ptr<ReconstructorGPUOursYu13> ptr;
 
-	ReconstructorGPUOurYu13(const std::string &directory, const std::string &filePattern,
+	ReconstructorGPUOursYu13(const std::string &directory, const std::string &filePattern,
 		unsigned int from, unsigned int to);
 
-	virtual ~ReconstructorGPUOurYu13();
+	virtual ~ReconstructorGPUOursYu13();
 
 	virtual std::string getAlgorithmType();
 

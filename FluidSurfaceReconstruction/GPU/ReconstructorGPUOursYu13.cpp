@@ -2,14 +2,14 @@
 
 #include "ReconstructionCUDA.cuh"
 
-ReconstructorGPUOurYu13::ReconstructorGPUOurYu13(const std::string & directory, const std::string & filePattern,
+ReconstructorGPUOursYu13::ReconstructorGPUOursYu13(const std::string & directory, const std::string & filePattern,
 	unsigned int from, unsigned int to) : ReconstructorGPU(directory, filePattern, from ,to) {}
 
-ReconstructorGPUOurYu13::~ReconstructorGPUOurYu13() {}
+ReconstructorGPUOursYu13::~ReconstructorGPUOursYu13() {}
 
-std::string ReconstructorGPUOurYu13::getAlgorithmType() { return std::string("Our Algorithm using anisotropic kernel"); }
+std::string ReconstructorGPUOursYu13::getAlgorithmType() { return std::string("Our Algorithm using anisotropic kernel"); }
 
-void ReconstructorGPUOurYu13::onBeginFrame(unsigned int frameIndex)
+void ReconstructorGPUOursYu13::onBeginFrame(unsigned int frameIndex)
 {
 	//! memory allocation for extra data storage.
 	CUDA_CREATE_GRID_3D(mDeviceNumSurfaceParticlesGrid, mSpatialGridInfo.resolution, uint);
@@ -21,7 +21,7 @@ void ReconstructorGPUOurYu13::onBeginFrame(unsigned int frameIndex)
 	mSimParam.anisotropicRadius = mSimParam.smoothingRadius * 2;
 }
 
-void ReconstructorGPUOurYu13::onFrameMove(unsigned int frameIndex)
+void ReconstructorGPUOursYu13::onFrameMove(unsigned int frameIndex)
 {
 	//! step1: calculation of mean and smoothed positions of particles.
 	std::cout << "step1: calculation of mean and smoothed positions of particles....\n";
@@ -57,7 +57,7 @@ void ReconstructorGPUOurYu13::onFrameMove(unsigned int frameIndex)
 
 }
 
-void ReconstructorGPUOurYu13::onEndFrame(unsigned int frameIndex)
+void ReconstructorGPUOursYu13::onEndFrame(unsigned int frameIndex)
 {
 	CUDA_DESTROY_GRID(mDeviceNumSurfaceParticlesGrid);
 	CUDA_DESTROY_GRID(mDeviceNumSurfaceParticlesGridScan);
@@ -67,14 +67,13 @@ void ReconstructorGPUOurYu13::onEndFrame(unsigned int frameIndex)
 	CUDA_DESTROY_GRID(mDeviceSVDMatricesArray);
 }
 
-void ReconstructorGPUOurYu13::onInitialization()
+void ReconstructorGPUOursYu13::onInitialization()
 {
 	//! isocontour value.
 	mSimParam.isoValue = 0.0f;
-	//! search extent.
-	mSimParam.expandExtent = 2;
 	//! 
-	mSimParam.scSpGridResRatio = 2;
+	mSimParam.scSpGridResRatio = 4;
+	mSimParam.expandExtent = mSimParam.scSpGridResRatio;
 	//! appropriate scaling for spatial hashing grid.
 	mSimParam.spatialCellSizeScale = 1.3f;
 	//! blending parameter for particle smoothing.
@@ -89,12 +88,12 @@ void ReconstructorGPUOurYu13::onInitialization()
 	INITGRID_ZERO(mDeviceSVDMatricesArray);
 }
 
-void ReconstructorGPUOurYu13::onFinalization()
+void ReconstructorGPUOursYu13::onFinalization()
 {
 	//! nothing to do.
 }
 
-void ReconstructorGPUOurYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
+void ReconstructorGPUOursYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
 {
 	//! save middle data for visualization.
 	char basename[256];
@@ -209,7 +208,7 @@ void ReconstructorGPUOurYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
 		std::cerr << "Failed to save the file: " << path << std::endl;
 }
 
-void ReconstructorGPUOurYu13::calculationOfMeanAndSmoothedParticles()
+void ReconstructorGPUOursYu13::calculationOfMeanAndSmoothedParticles()
 {
 	//! calculation of grid dim and block dim for gpu threads.
 	dim3 gridDim_, blockDim_;
@@ -223,7 +222,7 @@ void ReconstructorGPUOurYu13::calculationOfMeanAndSmoothedParticles()
 
 }
 
-void ReconstructorGPUOurYu13::estimationOfSurfaceVerticesAndParticles()
+void ReconstructorGPUOursYu13::estimationOfSurfaceVerticesAndParticles()
 {
 	//! calculation of grid dim and block dim for gpu threads.
 	dim3 gridDim_, blockDim_;
@@ -247,7 +246,7 @@ void ReconstructorGPUOurYu13::estimationOfSurfaceVerticesAndParticles()
 
 }
 
-void ReconstructorGPUOurYu13::compactationOfSurfaceVerticesAndParticles()
+void ReconstructorGPUOursYu13::compactationOfSurfaceVerticesAndParticles()
 {
 	//! calculation of exclusive prefix sum of mDeviceNumSurfaceParticlesGrid.
 	mNumSurfaceParticles = launchThrustExclusivePrefixSumScan(
@@ -304,7 +303,7 @@ void ReconstructorGPUOurYu13::compactationOfSurfaceVerticesAndParticles()
 
 }
 
-void ReconstructorGPUOurYu13::calculationOfTransformMatricesForParticles()
+void ReconstructorGPUOursYu13::calculationOfTransformMatricesForParticles()
 {
 	//! memory allocation for surface particles' matrices.
 	CUDA_CREATE_GRID_1D_SET(mDeviceSVDMatricesArray, mNumSurfaceParticles,
@@ -328,7 +327,7 @@ void ReconstructorGPUOurYu13::calculationOfTransformMatricesForParticles()
 	getLastCudaError("launch calculationOfTransformMatricesForParticles() failed");
 }
 
-void ReconstructorGPUOurYu13::computationOfScalarFieldGrid()
+void ReconstructorGPUOursYu13::computationOfScalarFieldGrid()
 {
 	if (mNumSurfaceVertices <= 0)
 	{
