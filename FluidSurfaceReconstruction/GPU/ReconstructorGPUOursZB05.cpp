@@ -19,28 +19,32 @@ void ReconstructorGPUOursZB05::onBeginFrame(unsigned int frameIndex)
 
 void ReconstructorGPUOursZB05::onFrameMove(unsigned int frameIndex)
 {
-	//! step1: estimation of surface vertices.
-	std::cout << "step1: estimation of surface vertices....\n";
+	//! step1: extraction of surface particles.
+	std::cout << "step1: extraction of surface particles....\n";
+	extractionOfSurfaceParticles();
+
+	//! step2: estimation of surface vertices.
+	std::cout << "step2: estimation of surface vertices....\n";
 	estimationOfSurfaceVertices();
 
 	//! step2: compactation of surface vertices.
-	std::cout << "step2: compactation of surface vertices...\n";
+	std::cout << "step3: compactation of surface vertices...\n";
 	compactationOfSurfaceVertices();
 
 	//! step3: calculation of scalar field grid with compacted surface vertices.
-	std::cout << "step3: calculation of scalar field grid...\n";
+	std::cout << "step4: calculation of scalar field grid...\n";
 	computationOfScalarFieldGrid();
 
 	//! step4: detection of valid surface cubes.
-	std::cout << "step4: detection of valid surface cubes...\n";
+	std::cout << "step5: detection of valid surface cubes...\n";
 	detectionOfValidSurfaceCubes();
 
 	//! step5: compactation of valid surface cubes.
-	std::cout << "step5: compactation of valid surface cubes...\n";
+	std::cout << "step6: compactation of valid surface cubes...\n";
 	compactationOfValidSurafceCubes();
 
 	//! step6: generation of triangles for surface.
-	std::cout << "step6: generation of triangles for surface...\n";
+	std::cout << "step7: generation of triangles for surface...\n";
 	generationOfSurfaceMeshUsingMC();
 
 }
@@ -136,6 +140,25 @@ void ReconstructorGPUOursZB05::saveMiddleDataToVisFile(unsigned int frameIndex)
 		std::vector<uint>().swap(surfaceVerticesIndexArray);
 
 		//! surface particles, none.
+		std::vector<uint> surfaceParticlesFlagArray;
+		surfaceParticlesFlagArray.resize(mNumParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesFlagArray.data()),
+			mDeviceSurfaceParticlesFlagGrid.grid, sizeof(uint) * mNumParticles, cudaMemcpyDeviceToHost));
+		uint numSurfaceParticles = 0;
+		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+			if (surfaceParticlesFlagArray[i] == 1)
+				++numSurfaceParticles;
+		file << numSurfaceParticles << std::endl;
+		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+		{
+			if (surfaceParticlesFlagArray[i] == 1)
+				file << i << ' ';
+		}
+		if (numSurfaceParticles > 0)
+			file << std::endl;
+		std::vector<uint>().swap(surfaceParticlesFlagArray);
+
+		//! involve particles, none.
 		file << 0 << std::endl;
 
 		//! valid surface cubes.
@@ -163,20 +186,46 @@ void ReconstructorGPUOursZB05::saveMiddleDataToVisFile(unsigned int frameIndex)
 		std::cerr << "Failed to save the file: " << path << std::endl;
 }
 
+void ReconstructorGPUOursZB05::extractionOfSurfaceParticles()
+{
+	//! calculation of grid dim and block dim for gpu threads.
+	dim3 gridDim_, blockDim_;
+	calcGridDimBlockDim(mDeviceCellParticleIndexArray.size, gridDim_, blockDim_);
+
+	//! initialization for surface particle flag.
+	checkCudaErrors(cudaMemset(mDeviceSurfaceParticlesFlagGrid.grid, 0,
+		mNumParticles * sizeof(uint)));
+
+	//! launch extraction kernel function.
+	launchExtractionOfSurfaceParticles(
+		gridDim_,
+		blockDim_,
+		mSimParam,
+		mDeviceFlagGrid,
+		mDeviceSurfaceParticlesFlagGrid,
+		mDeviceCellParticleIndexArray);
+	getLastCudaError("launch extractionOfSurfaceParticles() failed");
+}
+
 void ReconstructorGPUOursZB05::estimationOfSurfaceVertices()
 {
 	//! calculation of grid dim and block dim for gpu threads.
 	dim3 gridDim_, blockDim_;
-	if (!calcGridDimBlockDim(mDeviceFlagGrid.size, gridDim_, blockDim_))
-		return;
+	calcGridDimBlockDim(mNumParticles, gridDim_, blockDim_);
 
 	//! set zero for mDeviceIsSurfaceGrid.
 	checkCudaErrors(cudaMemset(mDeviceIsSurfaceGrid.grid, 0, mDeviceIsSurfaceGrid.size * sizeof(uint)));
-	checkCudaErrors(cudaMemset(mDeviceIsSurfaceGridScan.grid, 0, mDeviceIsSurfaceGridScan.size * sizeof(uint)));
 
 	//! launch the estimation kernel function.
-	launchEstimateSurfaceVertices(gridDim_, blockDim_, mDeviceFlagGrid, mDeviceIsSurfaceGrid,
-		mSimParam.expandExtent, mSimParam);
+	launchEstimationOfSurfaceVertices(
+		gridDim_,
+		blockDim_,
+		mSimParam,
+		mScalarFieldGridInfo,
+		mDeviceParticlesArray,
+		mDeviceSurfaceParticlesFlagGrid,
+		mDeviceCellParticleIndexArray,
+		mDeviceIsSurfaceGrid);
 	getLastCudaError("launch estimationOfSurfaceVertices() failed");
 }
 

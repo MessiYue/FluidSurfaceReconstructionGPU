@@ -103,6 +103,7 @@ void ReconstructorGPU::beginFrame(unsigned int frameIndex)
 	mNumParticles = particles.size();
 	CUDA_CREATE_GRID_1D(mDeviceParticlesArray, particles.size(), ParticlePosition);
 	CUDA_CREATE_GRID_1D(mDeviceParticlesDensityArray, particles.size(), ScalarValue);
+	CUDA_CREATE_GRID_1D(mDeviceSurfaceParticlesFlagGrid, particles.size(), uint);
 	checkCudaErrors(cudaMemcpy(mDeviceParticlesArray.grid, static_cast<void*>(particles.data()),
 		particles.size() * sizeof(ParticlePosition), cudaMemcpyHostToDevice));
 	checkCudaErrors(cudaMemcpy(mDeviceParticlesDensityArray.grid, static_cast<void*>(densities.data()),
@@ -131,6 +132,7 @@ void ReconstructorGPU::endFrame(unsigned int frameIndex)
 
 	CUDA_DESTROY_GRID(mDeviceParticlesArray);
 	CUDA_DESTROY_GRID(mDeviceParticlesDensityArray);
+	CUDA_DESTROY_GRID(mDeviceSurfaceParticlesFlagGrid);
 	CUDA_DESTROY_GRID(mDeviceScalarFieldGrid);
 	CUDA_DESTROY_GRID(mDeviceCellParticleIndexArray);
 

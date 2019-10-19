@@ -30,6 +30,9 @@ protected:
 
 private:
 
+	//! extraction of surface particles.
+	void extractionOfSurfaceParticles();
+
 	//! estimation of surface vertices.
 	void estimationOfSurfaceVertices();
 

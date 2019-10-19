@@ -66,7 +66,60 @@ void bindTextures(uint* d_edgeTable, int* d_edgeIndicesOfTriangleTable,
 
 //! --------------------------------------cuda kernel functions------------------------------------------------
 
-//! func: surface vertices' estimation using simple virutal density field.
+//! func: extraction of surface particles.
+__global__
+void extractionOfSurfaceParticles(
+	SimParam simParam,
+	DensityGrid flagGrid,
+	IsSurfaceGrid surfaceParticlesFlagGrid,
+	ParticleIndexRangeGrid particleIndexRangeGrid)
+{
+	uint threadId = getThreadIdGlobal();
+	uint3 flagGridRes = flagGrid.resolution;
+	uint3 curIndex3D = index1DTo3D(threadId, particleIndexRangeGrid.resolution);
+
+	if (curIndex3D.x >= flagGridRes.x - 1 || curIndex3D.y >= flagGridRes.y - 1 || curIndex3D.z >= flagGridRes.z - 1)
+		return;
+
+	if (flagGrid.grid[threadId] < 1.0f)
+		return;
+
+	bool isSurface = false;
+	int3 lower = make_int3(curIndex3D.x - 1, curIndex3D.y - 1, curIndex3D.z - 1);
+	int3 upper = make_int3(curIndex3D.x + 1, curIndex3D.y + 1, curIndex3D.z + 1);
+	lower = clamp(lower, make_int3(0, 0, 0), make_int3(flagGridRes.x - 1, flagGridRes.y - 1, flagGridRes.z - 1));
+	upper = clamp(upper, make_int3(0, 0, 0), make_int3(flagGridRes.x - 1, flagGridRes.y - 1, flagGridRes.z - 1));
+#pragma unroll 3
+	for (int z = lower.z; z <= upper.z; ++z)
+	{
+#pragma unroll 3
+		for (int y = lower.y; y <= upper.y; ++y)
+		{
+#pragma unroll 3
+			for (int x = lower.x; x <= upper.x; ++x)
+			{
+				uint3 neighbor = make_uint3(x, y, z);
+				uint index = index3DTo1D(neighbor, flagGridRes);
+				float value = flagGrid.grid[index];
+				if (value < 1.0f)
+					isSurface = true;
+			}
+		}
+	}
+
+	if (!isSurface)
+		return;
+
+	//! mark particles in this cell as surface particles.
+	IndexRange indexRange = particleIndexRangeGrid.grid[threadId];
+	if (indexRange.start != 0xffffffff)
+	{
+		for (uint i = indexRange.start; i < indexRange.end; ++i)
+			surfaceParticlesFlagGrid.grid[i] = 1;
+	}
+}
+
+//! func: surface vertices' estimation.
 __global__ 
 void estimateSurfaceVertices(
 	DensityGrid densityGrid,		// input, virtual density field.
@@ -427,6 +480,138 @@ void generateTriangles(
 	}
 }
 
+//! extraction of surface and involve particles.
+__global__
+void extractionOfSurfaceAndInvolveParticles(
+	SimParam simParam,									// input, simulation parameter.
+	DensityGrid flagGrid,								// input, flag grid.
+	NumInvolveParticlesGrid numInvolveParticlesGrid,	// output, number of involved particles per spatial cell.
+	IsSurfaceGrid surfaceParticlesFlagGrid,				// output, surface particles' flag array.
+	ParticleIndexRangeGrid particleIndexRangeGrid)		// input, paritcle index information grid.
+{
+	uint threadId = getThreadIdGlobal();
+	uint3 flagGridRes = flagGrid.resolution;
+	uint3 curIndex3D = index1DTo3D(threadId, particleIndexRangeGrid.resolution);
+
+	if (curIndex3D.x >= flagGridRes.x - 1 || curIndex3D.y >= flagGridRes.y - 1 || curIndex3D.z >= flagGridRes.z - 1)
+		return;
+
+	if (flagGrid.grid[threadId] < 1.0f)
+		return;
+
+	bool isSurface = false;
+	int3 lower = make_int3(curIndex3D.x - 1, curIndex3D.y - 1, curIndex3D.z - 1);
+	int3 upper = make_int3(curIndex3D.x + 1, curIndex3D.y + 1, curIndex3D.z + 1);
+	lower = clamp(lower, make_int3(0, 0, 0), make_int3(flagGridRes.x - 1, flagGridRes.y - 1, flagGridRes.z - 1));
+	upper = clamp(upper, make_int3(0, 0, 0), make_int3(flagGridRes.x - 1, flagGridRes.y - 1, flagGridRes.z - 1));
+#pragma unroll 3
+	for (int z = lower.z; z <= upper.z; ++z)
+	{
+#pragma unroll 3
+		for (int y = lower.y; y <= upper.y; ++y)
+		{
+#pragma unroll 3
+			for (int x = lower.x; x <= upper.x; ++x)
+			{
+				uint3 neighbor = make_uint3(x, y, z);
+				uint index = index3DTo1D(neighbor, flagGridRes);
+				float value = flagGrid.grid[index];
+				if (value < 1.0f)
+					isSurface = true;
+			}
+		}
+	}
+
+	if (!isSurface)
+		return;
+
+	//! mark particles in this cell as surface particles.
+	IndexRange indexRange = particleIndexRangeGrid.grid[threadId];
+	uint count = indexRange.end - indexRange.start;
+	if (indexRange.start != 0xffffffff)
+	{
+		for (uint i = indexRange.start; i < indexRange.end; ++i)
+			surfaceParticlesFlagGrid.grid[i] = 1;
+	}
+
+	//! collection of involve particles.
+	int3 minSpatialIndex3D = make_int3(curIndex3D.x - 2, curIndex3D.y - 2, curIndex3D.z - 2);
+	int3 maxSpatialIndex3D = make_int3(curIndex3D.x + 2, curIndex3D.y + 2, curIndex3D.z + 2);
+	minSpatialIndex3D = clamp(minSpatialIndex3D, make_int3(0, 0, 0),
+		make_int3(
+			particleIndexRangeGrid.resolution.x - 1,
+			particleIndexRangeGrid.resolution.y - 1,
+			particleIndexRangeGrid.resolution.z - 1));
+	maxSpatialIndex3D = clamp(maxSpatialIndex3D, make_int3(0, 0, 0),
+		make_int3(
+			particleIndexRangeGrid.resolution.x - 1,
+			particleIndexRangeGrid.resolution.y - 1,
+			particleIndexRangeGrid.resolution.z - 1));
+	for (int zSp = minSpatialIndex3D.z; zSp <= maxSpatialIndex3D.z; ++zSp)
+	{
+		for (int ySp = minSpatialIndex3D.y; ySp <= maxSpatialIndex3D.y; ++ySp)
+		{
+			for (int xSp = minSpatialIndex3D.x; xSp <= maxSpatialIndex3D.x; ++xSp)
+			{
+				// 3D index of spatialGrid.
+				uint3 index3D = make_uint3(xSp, ySp, zSp);
+				uint index1D = index3DTo1D(index3D, particleIndexRangeGrid.resolution);
+				IndexRange indexRange = particleIndexRangeGrid.grid[index1D];
+				// travel each particle of the corresponding cell to calculate scalr value.
+				if (indexRange.start == 0xffffffff)
+					continue;
+				// assign the number of particles in that cell.
+				uint num = indexRange.end - indexRange.start;
+				numInvolveParticlesGrid.grid[index1D] = num;
+			}
+		}
+	}
+}
+
+//! func: estimation of surface vertices and particles.
+__global__
+void estimationOfSurfaceVertices(
+	SimParam simParam,									// input, simulation parameter.
+	GridInfo scalarGridInfo,							// input, scalar field grid information.
+	ParticleArray particleArray,						// input, particles array.
+	IsSurfaceGrid surfaceParticlesFlagGrid,				// input, surface particles' flag array.
+	ParticleIndexRangeGrid particleIndexRangeGrid,		// input, paritcle index information grid.
+	IsSurfaceGrid isSurfaceGrid)						// output, surface vertices' flag array.
+{
+	uint threadId = getThreadIdGlobal();
+	if (threadId >= surfaceParticlesFlagGrid.size || surfaceParticlesFlagGrid.grid[threadId] == 0)
+		return;
+
+	float3 pos = particleArray.grid[threadId].pos;
+	int3 index3D = getIndex3D(pos, scalarGridInfo.minPos, scalarGridInfo.cellSize);
+	uint extent = simParam.smoothingRadius / scalarGridInfo.cellSize + 1;
+	
+	//! mark the vertex inside the bounding box as surface vertex.
+	int3 minIndex3D = index3D - extent;
+	int3 maxIndex3D = index3D + extent;
+	minIndex3D = clamp(minIndex3D, make_int3(0, 0, 0), make_int3(isSurfaceGrid.resolution.x - 1,
+		isSurfaceGrid.resolution.y - 1, isSurfaceGrid.resolution.z - 1));
+	maxIndex3D = clamp(maxIndex3D, make_int3(0, 0, 0), make_int3(isSurfaceGrid.resolution.x - 1,
+		isSurfaceGrid.resolution.y - 1, isSurfaceGrid.resolution.z - 1));
+	for (int zSp = minIndex3D.z; zSp <= maxIndex3D.z; ++zSp)
+	{
+		for (int ySp = minIndex3D.y; ySp <= maxIndex3D.y; ++ySp)
+		{
+			for (int xSp = minIndex3D.x; xSp < maxIndex3D.x; ++xSp)
+			{
+				uint3 curIndex3D = make_uint3(xSp, ySp, zSp);
+				float3 vertex = getVertexPos(curIndex3D, scalarGridInfo.minPos, scalarGridInfo.cellSize);
+				float dist = length(vertex - pos);
+				if (dist < simParam.smoothingRadius)
+				{
+					uint curIndex1D = index3DTo1D(curIndex3D, isSurfaceGrid.resolution);
+					isSurfaceGrid.grid[curIndex1D] = 1;
+				}
+			}
+		}
+	}
+}
+
 //! calculation of mean and smoothed particles.
 __global__
 void calculationOfMeanAndSmoothParticles(
@@ -441,7 +626,7 @@ void calculationOfMeanAndSmoothParticles(
 	uint threadId = getThreadIdGlobal();
 	if (threadId > particleArray.size)
 		return;
-	
+
 	//! corresponding particle position. 
 	float3 pos = particleArray.grid[threadId].pos;
 	int3 cubeIndex3D = getIndex3D(pos, spatialGridInfo.minPos, spatialGridInfo.cellSize);
@@ -490,95 +675,14 @@ void calculationOfMeanAndSmoothParticles(
 	}
 }
 
-//! func: estimation of surface vertices and particles.
-__global__
-void estimationOfSurfaceVerticesAndParticles(
-	SimParam simParam,									// input, simulation parameter.			
-	DensityGrid flagGrid,								// input, flag grid.
-	IsSurfaceGrid isSurfaceGrid,						// output, whether is in surface region or not.
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,	// output, number of surface particles for each cell.
-	ParticleIndexRangeGrid particleIndexRangeGrid,		// input, paritcle index information grid.
-	GridInfo spatialGridInfo)							// input, spatial hashing grid information.
-{
-	// get corresponding 3D index.
-	uint threadId = getThreadIdGlobal();
-	uint3 flagGridRes = flagGrid.resolution;
-	uint3 dR_1 = flagGridRes - 1;
-	uint3 curIndex3D = index1DTo3D(threadId, flagGridRes);
-
-	// boundary detection.
-	if (curIndex3D.x >= dR_1.x || curIndex3D.y >= dR_1.y || curIndex3D.z >= dR_1.z)
-		return;
-
-	// get corresponding situation flag.
-	uint vertexFlag = getVertexFlag(curIndex3D, flagGrid, 0.5f);
-
-	// 当前cube与等值面有交点
-	if (vertexFlag > 0 && vertexFlag < 255)
-	{
-		int3 minSpatialIndex3D = make_int3(curIndex3D.x, curIndex3D.y, curIndex3D.z);
-		int3 maxSpatialIndex3D = make_int3(curIndex3D.x + 1, curIndex3D.y + 1, curIndex3D.z + 1);
-
-		// expanding.
-		int3 minScalarIndex3D = minSpatialIndex3D * simParam.scSpGridResRatio - simParam.expandExtent;
-		int3 maxScalarIndex3D = maxSpatialIndex3D * simParam.scSpGridResRatio + simParam.expandExtent;
-
-		// clamping.
-		minScalarIndex3D = clamp(minScalarIndex3D, make_int3(0, 0, 0), make_int3(isSurfaceGrid.resolution.x - 1,
-			isSurfaceGrid.resolution.y - 1, isSurfaceGrid.resolution.z - 1));
-		maxScalarIndex3D = clamp(maxScalarIndex3D, make_int3(0, 0, 0), make_int3(isSurfaceGrid.resolution.x - 1,
-			isSurfaceGrid.resolution.y - 1, isSurfaceGrid.resolution.z - 1));
-
-		// mark corresponding cell as surface cell (let it equals 1).
-		for (uint zSc = minScalarIndex3D.z; zSc <= maxScalarIndex3D.z; zSc++)
-		{
-			for (uint ySc = minScalarIndex3D.y; ySc <= maxScalarIndex3D.y; ySc++)
-			{
-				for (uint xSc = minScalarIndex3D.x; xSc <= maxScalarIndex3D.x; xSc++)
-				{
-					uint3 curIndex3DInScalarGrid = make_uint3(xSc, ySc, zSc);
-					isSurfaceGrid.grid[index3DTo1D(curIndex3DInScalarGrid, isSurfaceGrid.resolution)] = 1;
-				}
-			}
-		}
-
-		// collection of surface particles.
-		minSpatialIndex3D = make_int3(curIndex3D.x - 2, curIndex3D.y - 2, curIndex3D.z - 2);
-		maxSpatialIndex3D = make_int3(curIndex3D.x + 2, curIndex3D.y + 2, curIndex3D.z + 2);
-		minSpatialIndex3D = clamp(minSpatialIndex3D, make_int3(0, 0, 0), make_int3(flagGrid.resolution.x - 1,
-			flagGrid.resolution.y - 1, flagGrid.resolution.z - 1));
-		maxSpatialIndex3D = clamp(maxSpatialIndex3D, make_int3(0, 0, 0), make_int3(flagGrid.resolution.x - 1,
-			flagGrid.resolution.y - 1, flagGrid.resolution.z - 1));
-		for (int zSp = minSpatialIndex3D.z; zSp <= maxSpatialIndex3D.z; ++zSp)
-		{
-			for (int ySp = minSpatialIndex3D.y; ySp <= maxSpatialIndex3D.y; ++ySp)
-			{
-				for (int xSp = minSpatialIndex3D.x; xSp <= maxSpatialIndex3D.x; ++xSp)
-				{
-					// 3D index of spatialGrid.
-					uint3 index3D = make_uint3(xSp, ySp, zSp);
-					uint index1D = index3DTo1D(index3D, particleIndexRangeGrid.resolution);
-					IndexRange indexRange = particleIndexRangeGrid.grid[index1D];
-					// travel each particle of the corresponding cell to calculate scalr value.
-					if (indexRange.start == 0xffffffff)
-						continue;
-					// assign the number of particles in that cell.
-					uint num = indexRange.end - indexRange.start;
-					numSurfaceParticlesGrid.grid[index1D] = num;
-				}
-			}
-		}
-	}
-}
-
 //! func: compactation of surface vertices and particles.
 __global__
 void compactationOfSurfaceVerticesAndParticles(
 	SimParam simParam,										// input, simulation parameters.
 	IsSurfaceGrid isSurfaceGrid,							// input, surface tag for scalar grid.
 	IsSurfaceGrid isSurfaceGridScan,						// input, exclusive prefix sum of isSurfaceGrid.
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,		// input, number of surface particles for each spatial cell.
-	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,	// input, exclusive prefix sum of numSurfaceParticlesGrid.
+	NumInvolveParticlesGrid numInvolveParticlesGrid,		// input, number of surface particles for each spatial cell.
+	NumInvolveParticlesGrid numInvolveParticlesGridScan,	// input, exclusive prefix sum of NumInvolveParticlesGrid.
 	ParticleIndexRangeGrid particleIndexRangeGrid,			// input, each spatial cell's particles' indices.
 	SurfaceVerticesIndexArray surfaceVerticesIndexArray,	// output, compacted surface vertices' indices
 	SurfaceParticlesIndexArray surfaceParticlesIndexArray)	// output, compacted surface particles' indices.
@@ -589,9 +693,9 @@ void compactationOfSurfaceVerticesAndParticles(
 		surfaceVerticesIndexArray.grid[isSurfaceGridScan.grid[threadId]] = threadId;
 
 	//! save surface particles' indices to surfaceParticlesIndexArray.
-	if (threadId < numSurfaceParticlesGridScan.size && numSurfaceParticlesGrid.grid[threadId] > 0)
+	if (threadId < numInvolveParticlesGridScan.size && numInvolveParticlesGrid.grid[threadId] > 0)
 	{
-		uint start = numSurfaceParticlesGridScan.grid[threadId];
+		uint start = numInvolveParticlesGridScan.grid[threadId];
 		IndexRange range = particleIndexRangeGrid.grid[threadId];
 		uint count = range.end - range.start;
 		for (uint i = 0; i < count; ++i)
@@ -752,8 +856,8 @@ void computationOfScalarFieldGrid(
 	ScalarFieldGrid particlesDensityArray,				// input, particle densities array. 
 	ParticleIndexRangeGrid particleIndexRangeGrid,		// input, each spatial cell's particles' indices' range.
 	SurfaceVerticesIndexArray surfaceVerticesIndexArray,// input, surface vertices' indices.
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,	// input, number of surface particles for each cell.
-	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,// input, exclusive prefix sum of numSurfaceParticlesGrid. 
+	NumInvolveParticlesGrid numInvolveParticlesGrid,	// input, number of surface particles for each cell.
+	NumInvolveParticlesGrid numInvolveParticlesGridScan,// input, exclusive prefix sum of NumInvolveParticlesGrid. 
 	ScalarFieldGrid scalarFieldGrid)					// output, scalar field grid.
 {
 	uint threadId = getThreadIdGlobal();
@@ -785,18 +889,32 @@ void computationOfScalarFieldGrid(
 				// 3D index of spatialGrid.
 				uint3 index3D = make_uint3(xSp, ySp, zSp);
 				uint index1D = index3DTo1D(index3D, particleIndexRangeGrid.resolution);
-				if (numSurfaceParticlesGrid.grid[index1D] == 0)
-					continue;
-				uint start = numSurfaceParticlesGridScan.grid[index1D];
-				IndexRange range = particleIndexRangeGrid.grid[index1D];
-
-				uint count = range.end - range.start;
-				for (uint i = 0; i < count; ++i)
+				// for near surface particles.
+				if (numInvolveParticlesGrid.grid[index1D] > 0)
 				{
-					MatrixValue gMat = svdMatricesArray.grid[start + i];
-					float3 neighborPos = smoothedParticleArray.grid[range.start + i].pos;
-					sum += simParam.particleMass / particlesDensityArray.grid[range.start + i].value
-						* anisotropicW(neighborPos - vPos, gMat, determinant(gMat));
+					uint start = numInvolveParticlesGridScan.grid[index1D];
+					IndexRange range = particleIndexRangeGrid.grid[index1D];
+					uint count = range.end - range.start;
+					for (uint i = 0; i < count; ++i)
+					{
+						MatrixValue gMat = svdMatricesArray.grid[start + i];
+						float3 neighborPos = smoothedParticleArray.grid[range.start + i].pos;
+						sum += simParam.particleMass / particlesDensityArray.grid[range.start + i].value
+							* anisotropicW(neighborPos - vPos, gMat, determinant(gMat));
+					}
+				}
+				else
+				{
+					IndexRange range = particleIndexRangeGrid.grid[index1D];
+					if (range.start == 0xffffffff)
+						continue;
+					uint count = range.end - range.start;
+					for (uint i = 0; i < count; ++i)
+					{
+						float3 neighborPos = smoothedParticleArray.grid[range.start + i].pos;
+						sum += simParam.particleMass / particlesDensityArray.grid[range.start + i].value
+							* anisotropicWOpt(neighborPos - vPos);
+					}
 				}
 			}
 		}
@@ -807,6 +925,23 @@ void computationOfScalarFieldGrid(
 
 //! -----------------------------------------launch functions for cuda kernel functions----------------------------------
 
+extern "C"
+void launchExtractionOfSurfaceParticles(
+	dim3 gridDim_,
+	dim3 blockDim_,
+	SimParam simParam,
+	DensityGrid flagGrid,
+	IsSurfaceGrid surfaceParticlesFlagGrid,
+	ParticleIndexRangeGrid particleIndexRangeGrid)
+{
+	extractionOfSurfaceParticles << <gridDim_, blockDim_ >> > (
+		simParam,
+		flagGrid,
+		surfaceParticlesFlagGrid,
+		particleIndexRangeGrid);
+	cudaDeviceSynchronize();
+}
+
 extern "C" 
 void launchEstimateSurfaceVertices(
 	dim3 gridDim_,
@@ -816,7 +951,11 @@ void launchEstimateSurfaceVertices(
 	uint scSearchExt,
 	SimParam params)
 {
-	estimateSurfaceVertices << < gridDim_, blockDim_ >> > (densityGrid, isSurfaceGrid, scSearchExt, params);
+	estimateSurfaceVertices << < gridDim_, blockDim_ >> > (
+		densityGrid,
+		isSurfaceGrid,
+		scSearchExt,
+		params);
 	cudaDeviceSynchronize();
 }
 
@@ -833,8 +972,14 @@ void launchUpdateScalarGridValues(
 	SimParam params)
 {
 	// not good enough.
-	updateScalarGridValuesStd << <gridDim_, blockDim_ >> > (isSurfaceGrid, particleIndexRangeGrid,
-		particleArray, ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
+	updateScalarGridValuesStd << <gridDim_, blockDim_ >> > (
+		isSurfaceGrid,
+		particleIndexRangeGrid,
+		particleArray,
+		ScalarFieldGrid,
+		spatialGridInfo,
+		scalarGridInfo,
+		params);
 	cudaDeviceSynchronize();
 }
 
@@ -847,7 +992,11 @@ void launchCompactSurfaceVertex(
 	IsSurfaceGrid isSurfaceGrid,
 	SimParam params)
 {
-	compactSurfaceVertex << <gridDim_, blockDim_ >> > (svIndexArray, isSurfaceGridScan, isSurfaceGrid, params);
+	compactSurfaceVertex << <gridDim_, blockDim_ >> > (
+		svIndexArray,
+		isSurfaceGridScan,
+		isSurfaceGrid,
+		params);
 	cudaDeviceSynchronize();
 }
 
@@ -865,8 +1014,15 @@ void launchUpdateScalarGridValuesCompacted(
 	SimParam params)
 {
 	// extra branches are avoided.
-	updateScalarGridValuesCompacted << <gridDim_, blockDim_ >> > (svIndexArray, numSurfaceVertices,
-		particleIndexRangeGrid, particleArray, ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
+	updateScalarGridValuesCompacted << <gridDim_, blockDim_ >> > (
+		svIndexArray,
+		numSurfaceVertices,
+		particleIndexRangeGrid,
+		particleArray,
+		ScalarFieldGrid,
+		spatialGridInfo,
+		scalarGridInfo,
+		params);
 	cudaDeviceSynchronize();
 }
 
@@ -882,8 +1038,14 @@ void launchDetectValidSurfaceCubes(
 	IsSurfaceGrid isSfGrid,
 	SimParam params)
 {
-	detectValidSurfaceCubes << <gridDim_, blockDim_ >> > (svIndexArray,
-		numSurfaceVertices, vGrid, isValidSurfaceGrid, numVerticesGrid, isSfGrid, params);
+	detectValidSurfaceCubes << <gridDim_, blockDim_ >> > (
+		svIndexArray,
+		numSurfaceVertices,
+		vGrid,
+		isValidSurfaceGrid,
+		numVerticesGrid,
+		isSfGrid,
+		params);
 	cudaDeviceSynchronize();
 }
 
@@ -896,8 +1058,11 @@ void launchCompactValidSurfaceCubes(
 	IsValidSurfaceGrid validSurfaceGrid,
 	SimParam params)
 {
-	compactValidSurfaceCubes << <gridDim_, blockDim_ >> > (indexArray,
-		validSurfaceGridScan, validSurfaceGrid, params);
+	compactValidSurfaceCubes << <gridDim_, blockDim_ >> > (
+		indexArray,
+		validSurfaceGridScan,
+		validSurfaceGrid, 
+		params);
 	cudaDeviceSynchronize();
 }
 
@@ -914,15 +1079,22 @@ void launchGenerateTriangles(
 	Float3Grid norGrid,
 	SimParam params)
 {
-	generateTriangles << <gridDim_, blockDim_ >> > (surfaceIndexInGridArray,
-		validIndexInSurfaceArray, scGridInfo, numVerticesGrid, ScalarFieldGrid, posGrid, norGrid, params);
+	generateTriangles << <gridDim_, blockDim_ >> > (
+		surfaceIndexInGridArray,
+		validIndexInSurfaceArray,
+		scGridInfo,
+		numVerticesGrid,
+		ScalarFieldGrid, 
+		posGrid,
+		norGrid,
+		params);
 	cudaDeviceSynchronize();
 }
 
 extern "C"
 uint launchThrustExclusivePrefixSumScan(uint* output, uint* input, uint numElements)
 {
-	//! exclusive prefix sum.
+	//! calculation of exclusive prefix sum.
 	thrust::exclusive_scan(
 		thrust::device_ptr<uint>(input),
 		thrust::device_ptr<uint>(input + numElements),
@@ -939,6 +1111,44 @@ uint launchThrustExclusivePrefixSumScan(uint* output, uint* input, uint numEleme
 	return sum;
 }
 
+void launchExtractionOfSurfaceAndInvolveParticles(
+	dim3 gridDim_,
+	dim3 blockDim_,
+	SimParam simParam,
+	DensityGrid flagGrid,
+	NumInvolveParticlesGrid numInvolveParticlesGrid,
+	IsSurfaceGrid surfaceParticlesFlagGrid,
+	ParticleIndexRangeGrid particleIndexRangeGrid)
+{
+	extractionOfSurfaceAndInvolveParticles << < gridDim_, blockDim_ >> > (
+		simParam,
+		flagGrid,
+		numInvolveParticlesGrid,
+		surfaceParticlesFlagGrid,
+		particleIndexRangeGrid);
+	cudaDeviceSynchronize();
+}
+
+void launchEstimationOfSurfaceVertices(
+	dim3 gridDim_,
+	dim3 blockDim_,
+	SimParam simParam,
+	GridInfo scalarGridInfo,
+	ParticleArray particleArray,
+	IsSurfaceGrid surfaceParticlesFlagGrid,
+	ParticleIndexRangeGrid particleIndexRangeGrid,
+	IsSurfaceGrid isSurfaceGrid)
+{
+	estimationOfSurfaceVertices << < gridDim_, blockDim_ >> > (
+		simParam,
+		scalarGridInfo,
+		particleArray,
+		surfaceParticlesFlagGrid,
+		particleIndexRangeGrid,
+		isSurfaceGrid);
+	cudaDeviceSynchronize();
+}
+
 void launchCalculationOfMeanAndSmoothParticles(
 	dim3 gridDim_,
 	dim3 blockDim_, 
@@ -949,23 +1159,13 @@ void launchCalculationOfMeanAndSmoothParticles(
 	ParticleIndexRangeGrid particleIndexRangeGrid,
 	GridInfo spatialGridInfo)
 {
-	calculationOfMeanAndSmoothParticles << < gridDim_, blockDim_ >> > (simParam, particleArray,
-		meanParticleArray, smoothedParticleArray, particleIndexRangeGrid, spatialGridInfo);
-	cudaDeviceSynchronize();
-}
-
-void launchEstimationOfSurfaceVerticesAndParticles(
-	dim3 gridDim_,
-	dim3 blockDim_,
-	SimParam simParam,
-	DensityGrid flagGrid,
-	IsSurfaceGrid isSurfaceGrid,
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,
-	ParticleIndexRangeGrid particleIndexRangeGrid,
-	GridInfo spatialGridInfo)
-{
-	estimationOfSurfaceVerticesAndParticles << < gridDim_, blockDim_ >> > (simParam, flagGrid,
-		isSurfaceGrid, numSurfaceParticlesGrid, particleIndexRangeGrid, spatialGridInfo);
+	calculationOfMeanAndSmoothParticles << < gridDim_, blockDim_ >> > (
+		simParam,
+		particleArray,
+		meanParticleArray,
+		smoothedParticleArray,
+		particleIndexRangeGrid,
+		spatialGridInfo);
 	cudaDeviceSynchronize();
 }
 
@@ -975,15 +1175,21 @@ void launchCompactationOfSurfaceVerticesAndParticles(
 	SimParam simParam,
 	IsSurfaceGrid isSurfaceGrid,
 	IsSurfaceGrid isSurfaceGridScan,
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,
-	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,
+	NumInvolveParticlesGrid numInvolveParticlesGrid,
+	NumInvolveParticlesGrid numInvolveParticlesGridScan,
 	ParticleIndexRangeGrid particleIndexRangeGrid,
 	SurfaceVerticesIndexArray surfaceVerticesIndexArray,
 	SurfaceParticlesIndexArray surfaceParticlesIndexArray)
 {
-	compactationOfSurfaceVerticesAndParticles << < gridDim_, blockDim_ >> > (simParam, isSurfaceGrid,
-		isSurfaceGridScan, numSurfaceParticlesGrid, numSurfaceParticlesGridScan, particleIndexRangeGrid,
-		surfaceVerticesIndexArray, surfaceParticlesIndexArray);
+	compactationOfSurfaceVerticesAndParticles << < gridDim_, blockDim_ >> > (
+		simParam,
+		isSurfaceGrid,
+		isSurfaceGridScan,
+		numInvolveParticlesGrid,
+		numInvolveParticlesGridScan,
+		particleIndexRangeGrid,
+		surfaceVerticesIndexArray,
+		surfaceParticlesIndexArray);
 	cudaDeviceSynchronize();
 }
 
@@ -998,8 +1204,14 @@ void launchCalculationOfTransformMatricesForParticles(
 	SurfaceParticlesIndexArray surfaceParticlesIndexArray,
 	MatrixArray svdMatricesArray)
 {
-	calculationOfTransformMatricesForParticles << < gridDim_, blockDim_ >> > (simParam, spatialGridInfo,
-		meanParticleArray, particleArray, particleIndexRangeGrid, surfaceParticlesIndexArray, svdMatricesArray);
+	calculationOfTransformMatricesForParticles << < gridDim_, blockDim_ >> > (
+		simParam,
+		spatialGridInfo,
+		meanParticleArray, 
+		particleArray,
+		particleIndexRangeGrid, 
+		surfaceParticlesIndexArray,
+		svdMatricesArray);
 	cudaDeviceSynchronize();
 }
 
@@ -1015,8 +1227,8 @@ void launchComputationOfScalarFieldGrid(
 	ScalarFieldGrid particlesDensityArray,
 	ParticleIndexRangeGrid particleIndexRangeGrid,
 	SurfaceVerticesIndexArray surfaceVerticesIndexArray,
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,
-	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,
+	NumInvolveParticlesGrid numInvolveParticlesGrid,
+	NumInvolveParticlesGrid numInvolveParticlesGridScan,
 	ScalarFieldGrid scalarFieldGrid)
 {
 	computationOfScalarFieldGrid << < gridDim_, blockDim_ >> > (
@@ -1029,8 +1241,8 @@ void launchComputationOfScalarFieldGrid(
 		particlesDensityArray,
 		particleIndexRangeGrid,
 		surfaceVerticesIndexArray,
-		numSurfaceParticlesGrid,
-		numSurfaceParticlesGridScan,
+		numInvolveParticlesGrid,
+		numInvolveParticlesGridScan,
 		scalarFieldGrid);
 	cudaDeviceSynchronize();
 }

@@ -12,8 +12,8 @@ std::string ReconstructorGPUOursYu13::getAlgorithmType() { return std::string("O
 void ReconstructorGPUOursYu13::onBeginFrame(unsigned int frameIndex)
 {
 	//! memory allocation for extra data storage.
-	CUDA_CREATE_GRID_3D(mDeviceNumSurfaceParticlesGrid, mSpatialGridInfo.resolution, uint);
-	CUDA_CREATE_GRID_3D(mDeviceNumSurfaceParticlesGridScan, mSpatialGridInfo.resolution, uint);
+	CUDA_CREATE_GRID_3D(mDeviceNumInvolveParticlesGrid, mSpatialGridInfo.resolution, uint);
+	CUDA_CREATE_GRID_3D(mDeviceNumInvolveParticlesGridScan, mSpatialGridInfo.resolution, uint);
 	CUDA_CREATE_GRID_1D(mDeviceParticlesMean, mDeviceParticlesArray.size, ParticlePosition);
 	CUDA_CREATE_GRID_1D(mDeviceParticlesSmoothed, mDeviceParticlesArray.size, ParticlePosition);
 
@@ -23,47 +23,51 @@ void ReconstructorGPUOursYu13::onBeginFrame(unsigned int frameIndex)
 
 void ReconstructorGPUOursYu13::onFrameMove(unsigned int frameIndex)
 {
-	//! step1: calculation of mean and smoothed positions of particles.
-	std::cout << "step1: calculation of mean and smoothed positions of particles....\n";
-	calculationOfMeanAndSmoothedParticles();
+	//! step1: extraction of surface and involve particles.
+	std::cout << "step1: extraction of surface and involve particles....\n";
+	extractionOfSurfaceAndInvolveParticles();
 
 	//! step2: estimation of surface vertices and surface particles.
-	std::cout << "step2: estimation of surface vertices and surface particles....\n";
-	estimationOfSurfaceVerticesAndParticles();
+	std::cout << "step2: estimation of surface vertices....\n";
+	estimationOfSurfaceVertices();
 
-	//! step3: compactation of surface vertices and surface particles.
-	std::cout << "step3: compactation of surface particles....\n";
+	//! step3: calculation of mean and smoothed positions of particles.
+	std::cout << "step3: calculation of mean and smoothed positions of particles....\n";
+	calculationOfMeanAndSmoothedParticles();
+
+	//! step4: compactation of surface vertices and surface particles.
+	std::cout << "step4: compactation of surface particles....\n";
 	compactationOfSurfaceVerticesAndParticles();
 
-	//! step4: calculation of transform matrices for each surface particle.
-	std::cout << "step4: calculation of transform matrices for each surface particle....\n";
+	//! step5: calculation of transform matrices for each surface particle.
+	std::cout << "step5: calculation of transform matrices for each surface particle....\n";
 	calculationOfTransformMatricesForParticles();
 
-	//! step5: calculation of scalar field grid with compacted surface vertices and surface particles.
-	std::cout << "step5: calculation of scalar field grid....\n";
+	//! step6: calculation of scalar field grid with compacted surface vertices and surface particles.
+	std::cout << "step6: calculation of scalar field grid....\n";
 	computationOfScalarFieldGrid();
 
-	//! step6: detection of valid surface cubes.
-	std::cout << "step6: detection of valid surface cubes...\n";
+	//! step7: detection of valid surface cubes.
+	std::cout << "step7: detection of valid surface cubes...\n";
 	detectionOfValidSurfaceCubes();
 
-	//! step7: compactation of valid surface cubes.
-	std::cout << "step7: compactation of valid surface cubes...\n";
+	//! step8: compactation of valid surface cubes.
+	std::cout << "step8: compactation of valid surface cubes...\n";
 	compactationOfValidSurafceCubes();
 
-	//! step8: generation of triangles for surface.
-	std::cout << "step8: generation of triangles for surface...\n";
+	//! step9: generation of triangles for surface.
+	std::cout << "step9: generation of triangles for surface...\n";
 	generationOfSurfaceMeshUsingMC();
 
 }
 
 void ReconstructorGPUOursYu13::onEndFrame(unsigned int frameIndex)
 {
-	CUDA_DESTROY_GRID(mDeviceNumSurfaceParticlesGrid);
-	CUDA_DESTROY_GRID(mDeviceNumSurfaceParticlesGridScan);
+	CUDA_DESTROY_GRID(mDeviceNumInvolveParticlesGrid);
+	CUDA_DESTROY_GRID(mDeviceNumInvolveParticlesGridScan);
 	CUDA_DESTROY_GRID(mDeviceParticlesMean);
 	CUDA_DESTROY_GRID(mDeviceParticlesSmoothed);
-	CUDA_DESTROY_GRID(mDeviceSurfaceParticlesIndexArray);
+	CUDA_DESTROY_GRID(mDeviceInvolveParticlesIndexArray);
 	CUDA_DESTROY_GRID(mDeviceSVDMatricesArray);
 }
 
@@ -83,8 +87,8 @@ void ReconstructorGPUOursYu13::onInitialization()
 
 	INITGRID_ZERO(mDeviceParticlesMean);
 	INITGRID_ZERO(mDeviceParticlesSmoothed);
-	INITGRID_ZERO(mDeviceNumSurfaceParticlesGrid);
-	INITGRID_ZERO(mDeviceSurfaceParticlesIndexArray);
+	INITGRID_ZERO(mDeviceNumInvolveParticlesGrid);
+	INITGRID_ZERO(mDeviceInvolveParticlesIndexArray);
 	INITGRID_ZERO(mDeviceSVDMatricesArray);
 }
 
@@ -172,16 +176,35 @@ void ReconstructorGPUOursYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
 		std::vector<uint>().swap(surfaceVerticesIndexArray);
 
 		//! surface particles.
+		std::vector<uint> surfaceParticlesFlagArray;
+		surfaceParticlesFlagArray.resize(mNumParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesFlagArray.data()),
+			mDeviceSurfaceParticlesFlagGrid.grid, sizeof(uint) * mNumParticles, cudaMemcpyDeviceToHost));
+		uint numSurfaceParticles = 0;
+		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+			if (surfaceParticlesFlagArray[i] == 1)
+				++numSurfaceParticles;
+		file << numSurfaceParticles << std::endl;
+		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+		{
+			if (surfaceParticlesFlagArray[i] == 1)
+				file << i << ' ';
+		}
+		if (numSurfaceParticles > 0)
+			file << std::endl;
+		std::vector<uint>().swap(surfaceParticlesFlagArray);
+
+		//! involve particles.
 		file << mNumSurfaceParticles << std::endl;
-		std::vector<uint> surfaceParticlesIndexArray;
-		surfaceParticlesIndexArray.resize(mNumSurfaceParticles);
-		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesIndexArray.data()),
-			mDeviceSurfaceParticlesIndexArray.grid, sizeof(uint) * mNumSurfaceParticles, cudaMemcpyDeviceToHost));
+		std::vector<uint> involveParticlesIndexArray;
+		involveParticlesIndexArray.resize(mNumSurfaceParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(involveParticlesIndexArray.data()),
+			mDeviceInvolveParticlesIndexArray.grid, sizeof(uint) * mNumSurfaceParticles, cudaMemcpyDeviceToHost));
 		for (size_t i = 0; i < mNumSurfaceParticles; ++i)
-			file << surfaceParticlesIndexArray[i] << ' ';
+			file << involveParticlesIndexArray[i] << ' ';
 		if (mNumSurfaceParticles > 0)
 			file << std::endl;
-		std::vector<uint>().swap(surfaceParticlesIndexArray);
+		std::vector<uint>().swap(involveParticlesIndexArray);
 
 		//! valid surface cubes.
 		file << mNumValidSurfaceCubes << std::endl;
@@ -208,13 +231,61 @@ void ReconstructorGPUOursYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
 		std::cerr << "Failed to save the file: " << path << std::endl;
 }
 
+void ReconstructorGPUOursYu13::extractionOfSurfaceAndInvolveParticles()
+{
+	//! calculation of grid dim and block dim for gpu threads.
+	dim3 gridDim_, blockDim_;
+	calcGridDimBlockDim(mDeviceCellParticleIndexArray.size, gridDim_, blockDim_);
+
+	//! initialization for surface particle flag.
+	checkCudaErrors(cudaMemset(mDeviceSurfaceParticlesFlagGrid.grid, 0,
+		mNumParticles * sizeof(uint)));
+	//! set zero for mDeviceNumInvolveParticlesGrid.
+	checkCudaErrors(cudaMemset(mDeviceNumInvolveParticlesGrid.grid, 0,
+		mDeviceNumInvolveParticlesGrid.size * sizeof(uint)));
+
+	//! launch the extraction kernel function.
+	launchExtractionOfSurfaceAndInvolveParticles(
+		gridDim_,
+		blockDim_,
+		mSimParam,
+		mDeviceFlagGrid,
+		mDeviceNumInvolveParticlesGrid,
+		mDeviceSurfaceParticlesFlagGrid,
+		mDeviceCellParticleIndexArray);
+	getLastCudaError("launch extractionOfSurfaceAndInvolveParticles() failed");
+}
+
+void ReconstructorGPUOursYu13::estimationOfSurfaceVertices()
+{
+	//! calculation of grid dim and block dim for gpu threads.
+	dim3 gridDim_, blockDim_;
+	calcGridDimBlockDim(mNumParticles, gridDim_, blockDim_);
+
+	//! set zero for mDeviceIsSurfaceGrid.
+	checkCudaErrors(cudaMemset(mDeviceIsSurfaceGrid.grid, 0, mDeviceIsSurfaceGrid.size * sizeof(uint)));
+
+	//! launch the estimation kernel function.
+	launchEstimationOfSurfaceVertices(
+		gridDim_,
+		blockDim_,
+		mSimParam,
+		mScalarFieldGridInfo,
+		mDeviceParticlesArray,
+		mDeviceSurfaceParticlesFlagGrid,
+		mDeviceCellParticleIndexArray,
+		mDeviceIsSurfaceGrid);
+	getLastCudaError("launch estimationOfSurfaceVertices() failed");
+
+}
+
 void ReconstructorGPUOursYu13::calculationOfMeanAndSmoothedParticles()
 {
 	//! calculation of grid dim and block dim for gpu threads.
 	dim3 gridDim_, blockDim_;
 	if (!calcGridDimBlockDim(mDeviceParticlesArray.size, gridDim_, blockDim_))
 		return;
-	
+
 	//! launch the calculation kernel function.
 	launchCalculationOfMeanAndSmoothParticles(gridDim_, blockDim_, mSimParam, mDeviceParticlesArray,
 		mDeviceParticlesMean, mDeviceParticlesSmoothed, mDeviceCellParticleIndexArray, mSpatialGridInfo);
@@ -222,37 +293,13 @@ void ReconstructorGPUOursYu13::calculationOfMeanAndSmoothedParticles()
 
 }
 
-void ReconstructorGPUOursYu13::estimationOfSurfaceVerticesAndParticles()
-{
-	//! calculation of grid dim and block dim for gpu threads.
-	dim3 gridDim_, blockDim_;
-	if (!calcGridDimBlockDim(mDeviceFlagGrid.size, gridDim_, blockDim_))
-		return;
-
-	//! set zero for mDeviceNumSurfaceParticlesGrid.
-	checkCudaErrors(cudaMemset(mDeviceNumSurfaceParticlesGrid.grid, 0, mDeviceNumSurfaceParticlesGrid.size * sizeof(uint)));
-	
-	//! launch the estimation kernel function.
-	launchEstimationOfSurfaceVerticesAndParticles(
-		gridDim_,
-		blockDim_,
-		mSimParam,
-		mDeviceFlagGrid,
-		mDeviceIsSurfaceGrid,
-		mDeviceNumSurfaceParticlesGrid,
-		mDeviceCellParticleIndexArray,
-		mSpatialGridInfo);
-	getLastCudaError("launch estimationOfSurfaceVerticesAndParticles() failed");
-
-}
-
 void ReconstructorGPUOursYu13::compactationOfSurfaceVerticesAndParticles()
 {
-	//! calculation of exclusive prefix sum of mDeviceNumSurfaceParticlesGrid.
+	//! calculation of exclusive prefix sum of mDeviceNumInvolveParticlesGrid.
 	mNumSurfaceParticles = launchThrustExclusivePrefixSumScan(
-		mDeviceNumSurfaceParticlesGridScan.grid,
-		mDeviceNumSurfaceParticlesGrid.grid, 
-		(uint)mDeviceNumSurfaceParticlesGrid.size);
+		mDeviceNumInvolveParticlesGridScan.grid,
+		mDeviceNumInvolveParticlesGrid.grid, 
+		(uint)mDeviceNumInvolveParticlesGrid.size);
 	mNumSurfaceVertices = launchThrustExclusivePrefixSumScan(
 		mDeviceIsSurfaceGridScan.grid,
 		mDeviceIsSurfaceGrid.grid,
@@ -277,12 +324,12 @@ void ReconstructorGPUOursYu13::compactationOfSurfaceVerticesAndParticles()
 		/ mNumParticles << std::endl;
 
 	//! memory allocation for surface particles.
-	CUDA_CREATE_GRID_1D_SET(mDeviceSurfaceParticlesIndexArray, mNumSurfaceParticles,
+	CUDA_CREATE_GRID_1D_SET(mDeviceInvolveParticlesIndexArray, mNumSurfaceParticles,
 		mNumSurfaceParticles, 0, uint);
 
 	//! calculation of grid dim and block dim.
 	dim3 gridDim_, blockDim_;
-	auto totalThreads = mDeviceNumSurfaceParticlesGrid.size;
+	auto totalThreads = mDeviceNumInvolveParticlesGrid.size;
 	if (totalThreads < mDeviceIsSurfaceGrid.size)
 		totalThreads = mDeviceIsSurfaceGrid.size;
 	calcGridDimBlockDim(totalThreads, gridDim_, blockDim_);
@@ -294,11 +341,11 @@ void ReconstructorGPUOursYu13::compactationOfSurfaceVerticesAndParticles()
 		mSimParam,
 		mDeviceIsSurfaceGrid,
 		mDeviceIsSurfaceGridScan,
-		mDeviceNumSurfaceParticlesGrid,
-		mDeviceNumSurfaceParticlesGridScan,
+		mDeviceNumInvolveParticlesGrid,
+		mDeviceNumInvolveParticlesGridScan,
 		mDeviceCellParticleIndexArray,
 		mDeviceSurfaceVerticesIndexArray,
-		mDeviceSurfaceParticlesIndexArray);
+		mDeviceInvolveParticlesIndexArray);
 	getLastCudaError("launch compactationOfSurfaceVerticesAndParticles() failed");
 
 }
@@ -322,7 +369,7 @@ void ReconstructorGPUOursYu13::calculationOfTransformMatricesForParticles()
 		mDeviceParticlesMean,
 		mDeviceParticlesArray,
 		mDeviceCellParticleIndexArray,
-		mDeviceSurfaceParticlesIndexArray,
+		mDeviceInvolveParticlesIndexArray,
 		mDeviceSVDMatricesArray);
 	getLastCudaError("launch calculationOfTransformMatricesForParticles() failed");
 }
@@ -355,8 +402,8 @@ void ReconstructorGPUOursYu13::computationOfScalarFieldGrid()
 		mDeviceParticlesDensityArray,
 		mDeviceCellParticleIndexArray,
 		mDeviceSurfaceVerticesIndexArray,
-		mDeviceNumSurfaceParticlesGrid,
-		mDeviceNumSurfaceParticlesGridScan,
+		mDeviceNumInvolveParticlesGrid,
+		mDeviceNumInvolveParticlesGridScan,
 		mDeviceScalarFieldGrid);
 	getLastCudaError("launch computationOfScalarFieldGrid() failed");
 }

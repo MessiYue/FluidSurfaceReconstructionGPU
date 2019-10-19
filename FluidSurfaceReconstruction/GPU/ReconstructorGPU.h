@@ -103,6 +103,7 @@ protected:
 	ParticleIndexRangeGrid mDeviceCellParticleIndexArray;	//! particles' start index and end index for each cell of grid.
 
 	DensityGrid mDeviceFlagGrid;							//! virtual denisty field grid.
+	IsSurfaceGrid mDeviceSurfaceParticlesFlagGrid;			//! whether the particle is in surface region or not.
 	IsSurfaceGrid mDeviceIsSurfaceGrid;						//! whether the vertex is in surface region or not.
 	IsSurfaceGrid mDeviceIsSurfaceGridScan;					//! exclusive prefix sum of mDeviceIsSurfaceGrid.
 	SurfaceVerticesIndexArray mDeviceSurfaceVerticesIndexArray;//! compacted surface vertices' indices array.

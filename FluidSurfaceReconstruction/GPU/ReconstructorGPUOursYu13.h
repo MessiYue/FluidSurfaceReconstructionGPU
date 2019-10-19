@@ -29,11 +29,14 @@ protected:
 
 private:
 
+	//! extraction of surface particles.
+	void extractionOfSurfaceAndInvolveParticles();
+
+	//! estimation of surface vertices and involve particles.
+	void estimationOfSurfaceVertices();
+
 	//! calculation of mean pos and smoothed pos for particles.
 	void calculationOfMeanAndSmoothedParticles();
-
-	//! estimation of surface vertices and surface particles.
-	void estimationOfSurfaceVerticesAndParticles();
 
 	//! compactation of surface particles.
 	void compactationOfSurfaceVerticesAndParticles();
@@ -49,9 +52,9 @@ private:
 	uint mNumSurfaceParticles;										//! number of surface particles.
 	ParticleArray mDeviceParticlesMean;								//! mean positions of particles.
 	ParticleArray mDeviceParticlesSmoothed;							//! smoothed positions of particles.
-	NumSurfaceParticlesGrid mDeviceNumSurfaceParticlesGrid;			//! number of surface particles for each cell.
-	NumSurfaceParticlesGrid mDeviceNumSurfaceParticlesGridScan;		//! number of surface particles for each cell.
-	SurfaceParticlesIndexArray mDeviceSurfaceParticlesIndexArray;	//! surface particles' indices.
+	NumInvolveParticlesGrid mDeviceNumInvolveParticlesGrid;			//! number of surface particles for each cell.
+	NumInvolveParticlesGrid mDeviceNumInvolveParticlesGridScan;		//! number of surface particles for each cell.
+	SurfaceParticlesIndexArray mDeviceInvolveParticlesIndexArray;	//! surface particles' indices.
 	MatrixArray mDeviceSVDMatricesArray;							//! transform matrices for anisotropic kernel.
 
 };

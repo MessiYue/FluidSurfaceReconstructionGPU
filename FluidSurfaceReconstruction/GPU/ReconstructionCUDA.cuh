@@ -21,6 +21,16 @@ void bindTextures(
 	uint* d_numVerticesTable,							// table of triangle vertices.
 	uint* d_vertexIndicesOfEdgeTable);					// table of edge vertices' indices.
 
+//! func: extraction of surface particles.
+extern "C" void
+launchExtractionOfSurfaceParticles(
+	dim3 gridDim_,										// cuda grid dimension.
+	dim3 blockDim_,										// cuda block dimension.
+	SimParam simParam,									// simulation parameter.
+	DensityGrid flagGrid,								// virtual density grid of particles.
+	IsSurfaceGrid surfaceParticlesFlagGrid,				// surface particles' flag array.
+	ParticleIndexRangeGrid particleIndexRangeGrid);     // paritcle index information grid.
+
 //! func: estimation of surface vertices
 extern "C"
 void launchEstimateSurfaceVertices(
@@ -109,6 +119,39 @@ extern "C" uint
 launchThrustExclusivePrefixSumScan(uint* output, uint* input, uint numElements);
 
 //! ------------------------------------ functions for anisotropic kernel------------------------------
+/*
+	gridDim_;
+	blockDim_;
+	mSimParam;
+	mDeviceFlagGrid;
+	mDeviceNumInvolveParticlesGrid;
+	mDeviceSurfaceParticlesFlagGrid;
+	mDeviceCellParticleIndexArray;
+	mSpatialGridInfo;
+*/
+
+//! func: extraction of surface and involve particles.
+extern "C" void
+launchExtractionOfSurfaceAndInvolveParticles(
+	dim3 gridDim_,										// cuda grid dimension.
+	dim3 blockDim_,										// cuda block dimension.
+	SimParam simParam,									// simulation parameter.
+	DensityGrid flagGrid,								// virtual density grid of particles.
+	NumInvolveParticlesGrid numInvolveParticlesGrid,	// number of surface particles.
+	IsSurfaceGrid surfaceParticlesFlagGrid,				// surface particles' flag array.
+	ParticleIndexRangeGrid particleIndexRangeGrid);     // paritcle index information grid.
+
+//! func: estimation of surface vertices and particles.
+extern "C" void
+launchEstimationOfSurfaceVertices(
+	dim3 gridDim_,										// cuda grid dimension.
+	dim3 blockDim_,										// cuda block dimension.
+	SimParam simParam,									// simulation parameter.
+	GridInfo scalarGridInfo,							// scalar field grid information.
+	ParticleArray particleArray,						// particles array.
+	IsSurfaceGrid surfaceParticlesFlagGrid,				// surface particles' flag array.
+	ParticleIndexRangeGrid particleIndexRangeGrid,		// paritcle index information grid.
+	IsSurfaceGrid isSurfaceGrid);						// surface tag field.
 
 //! func: calculation of mean and smoothed particles.
 extern "C" void
@@ -122,18 +165,6 @@ launchCalculationOfMeanAndSmoothParticles(
 	ParticleIndexRangeGrid particleIndexRangeGrid,      // paritcle index information grid.
 	GridInfo spatialGridInfo);
 
-//! func: estimation of surface vertices and particles.
-extern "C" void
-launchEstimationOfSurfaceVerticesAndParticles(
-	dim3 gridDim_,										// cuda grid dimension.
-	dim3 blockDim_,										// cuda block dimension.
-	SimParam simParam,									// simulation parameter.
-	DensityGrid flagGrid,								// virtual density grid of particles.
-	IsSurfaceGrid isSurfaceGrid,						// surface tag field.
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,	// number of surface particles.
-	ParticleIndexRangeGrid particleIndexRangeGrid,		// paritcle index information grid.
-	GridInfo spatialGridInfo);
-
 //! func: compactation of surface vertices and particles.
 extern "C" void
 launchCompactationOfSurfaceVerticesAndParticles(
@@ -142,8 +173,8 @@ launchCompactationOfSurfaceVerticesAndParticles(
 	SimParam simParam,										// simulation parameter.
 	IsSurfaceGrid isSurfaceGrid,							// surface tag field.
 	IsSurfaceGrid isSurfaceGridScan,						// exclusive prefix sum of isSurfaceGrid
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,		// number of surface particles.
-	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,	// exclusive prefix sum of numSurfaceParticlesGrid.
+	NumInvolveParticlesGrid numInvolveParticlesGrid,		// number of surface particles.
+	NumInvolveParticlesGrid numInvolveParticlesGridScan,	// exclusive prefix sum of NumInvolveParticlesGrid.
 	ParticleIndexRangeGrid particleIndexRangeGrid,			// paritcle index information grid.
 	SurfaceVerticesIndexArray surfaceVerticesIndexArray,
 	SurfaceParticlesIndexArray surfaceParticlesIndexArray);
@@ -175,8 +206,8 @@ launchComputationOfScalarFieldGrid(
 	ScalarFieldGrid particlesDensityArray,					// particle densities array.
 	ParticleIndexRangeGrid particleIndexRangeGrid,			// paritcle index information grid.
 	SurfaceVerticesIndexArray surfaceVerticesIndexArray,	// surface vertices' indices.
-	NumSurfaceParticlesGrid numSurfaceParticlesGrid,		// number of surface particles.
-	NumSurfaceParticlesGrid numSurfaceParticlesGridScan,	// exclusive prefix sum of numSurfaceParticlesGrid.
+	NumInvolveParticlesGrid numInvolveParticlesGrid,		// number of surface particles.
+	NumInvolveParticlesGrid numInvolveParticlesGridScan,	// exclusive prefix sum of NumInvolveParticlesGrid.
 	ScalarFieldGrid ScalarFieldGrid);						// scalar field grid.
 
 
@@ -251,6 +282,18 @@ float anisotropicW(float3 r, MatrixValue g, float det)
 		return 0.0f;
 	float x = 1.0 - distSq;
 	return SIGMA * det * x * x * x;
+}
+
+//! func: optimation for non-surface particles.
+inline __host__ __device__
+float anisotropicWOpt(float3 r)
+{
+	float dist = length(r);
+	float distSq = dist * dist;
+	if (distSq >= 1.0)
+		return 0.0f;
+	float x = 1.0 - distSq;
+	return SIGMA * x * x * x;
 }
 
 //! ------------------------------------------Common---------------------------------------------

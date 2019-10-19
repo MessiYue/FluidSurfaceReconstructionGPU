@@ -112,12 +112,23 @@ Utils::Configuration Utils::loadDataFromVisFile(const std::string &dir, const st
 		unsigned int numSurfaceParticles;
 		std::getline(file, line);
 		parseUIntFromStr(line, numSurfaceParticles);
-		//std::cout << numSurfaceParticles << std::endl;
 		result.surfaceParticles.resize(numSurfaceParticles);
 		if (numSurfaceParticles > 0)
 		{
 			std::getline(file, line);
 			parseUIntArrayFromStr(line, result.surfaceParticles);
+		}
+
+		//! involve particles.
+		unsigned int numInvolveParticles;
+		std::getline(file, line);
+		parseUIntFromStr(line, numInvolveParticles);
+		//std::cout << numSurfaceParticles << std::endl;
+		result.involveParticles.resize(numInvolveParticles);
+		if (numInvolveParticles > 0)
+		{
+			std::getline(file, line);
+			parseUIntArrayFromStr(line, result.involveParticles);
 			//for (size_t i = 0;i < 100;++i)
 			//	std::cout << result.surfaceParticles[i] << " ";
 			//std::cout << std::endl;
@@ -195,6 +206,8 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 	//surface_frame_drawable->set_visible(false);
 
 	//!----------------------------------------------- particles -------------------------------------------.
+	
+	//£¡original particles.
 	std::vector<vec3> particlesPos = readParticlesFromXYZ(config.particlesFile, config);
 	PointCloud *particles = new PointCloud;
 	ViewerImGui::particles = particles;
@@ -203,16 +216,12 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 	PointsDrawable* particlesDrawable = particles->add_points_drawable("particles");
 	auto particlePoints = particles->get_vertex_property<vec3>("v:point");
 	particlesDrawable->update_vertex_buffer(particlePoints.vector());
-
-	auto particleColors = particles->add_vertex_property<vec3>("v:color");
-	for (auto v : particles->vertices())
-		particleColors[v] = vec3(0.0f, 0.0f, 0.9f);
-	particlesDrawable->update_color_buffer(particleColors.vector());
-
+	particlesDrawable->set_default_color(vec3(0.0f, 0.0f, 0.9f));
 	particlesDrawable->set_per_vertex_color(true);
 	particlesDrawable->set_point_size(config.particleRadius);
 	particlesDrawable->set_lighting(true);
 
+	//! smoothed particles.
 	PointCloud *smoothedParticles = new PointCloud;
 	ViewerImGui::smoothedParticles = smoothedParticles;
 	for (auto &elem : config.smoothedParticles)
@@ -220,15 +229,25 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 	PointsDrawable *smoothedParDrawable = smoothedParticles->add_points_drawable("smoothedParticles");
 	auto smoothedParticlesPoints = smoothedParticles->get_vertex_property<vec3>("v:point");
 	smoothedParDrawable->update_vertex_buffer(smoothedParticlesPoints.vector());
-
-	auto sParticleColors = smoothedParticles->add_vertex_property<vec3>("v:color");
-	for (auto v : smoothedParticles->vertices())
-		sParticleColors[v] = vec3(0.9f, 0.0f, 0.0f);
-	smoothedParDrawable->update_color_buffer(sParticleColors.vector());
-
+	smoothedParDrawable->set_default_color(vec3(0.9f, 0.0f, 0.0f));
 	smoothedParDrawable->set_per_vertex_color(true);
 	smoothedParDrawable->set_point_size(config.particleRadius);
 	smoothedParDrawable->set_lighting(true);
+	smoothedParDrawable->set_visible(false);
+
+	//! surface particles.
+	PointCloud *surfaceParticles = new PointCloud;
+	ViewerImGui::surfaceParticles = surfaceParticles;
+	for (size_t i = 0; i < config.surfaceParticles.size(); ++i)
+		surfaceParticles->add_vertex(config.smoothedParticles[config.surfaceParticles[i]]);
+	PointsDrawable *surfaceParDrawable = surfaceParticles->add_points_drawable("surfaceParticles");
+	auto surfaceParticlesPoints = surfaceParticles->get_vertex_property<vec3>("v:point");
+	surfaceParDrawable->update_vertex_buffer(surfaceParticlesPoints.vector());
+	surfaceParDrawable->set_default_color(vec3(0.6, 0.6, 0.0));
+	surfaceParDrawable->set_per_vertex_color(true);
+	surfaceParDrawable->set_point_size(config.particleRadius);
+	surfaceParDrawable->set_lighting(true);
+	surfaceParDrawable->set_visible(false);
 
 	//!------------------------------------ spatial hashing grid ---------------------------------------------.
 	
@@ -262,6 +281,7 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 
 	viewer->add_model(particles);
 	viewer->add_model(smoothedParticles);
+	viewer->add_model(surfaceParticles);
 	viewer->add_model(surfaceMesh);
 }
 

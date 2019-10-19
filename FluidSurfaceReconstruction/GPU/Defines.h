@@ -83,7 +83,7 @@ typedef Grid<ParticlePosition> ParticleArray;
 typedef Grid<IndexRange> ParticleIndexRangeGrid;
 typedef Grid<ScalarValue>  ScalarFieldGrid;			
 typedef Grid<uint> IsSurfaceGrid;
-typedef Grid<uint> NumSurfaceParticlesGrid;
+typedef Grid<uint> NumInvolveParticlesGrid;
 typedef Grid<uint> NumVerticesGrid;								// number of vertices.
 typedef Grid<uint> IsValidSurfaceGrid;							// whethe valid or not for cells.
 typedef Grid<uint> SurfaceParticlesIndexArray;

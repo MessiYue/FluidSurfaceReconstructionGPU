@@ -41,6 +41,9 @@ public:
 
 		//! surface particles.
 		std::vector<unsigned int> surfaceParticles;
+
+		//! involve particles.
+		std::vector<unsigned int> involveParticles;
 		
 		//! valid surface cubes.
 		std::vector<unsigned int> validSurfaceCubes;
