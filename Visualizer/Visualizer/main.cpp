@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 		ViewerImGui viewer("Visualization for fluid surface reconstruction", 80, 3, 2);
 
 		viewer.resize(1000, 800);
-				
+		setting::light_position = vec4(0, 10, 0, 0);
 		viewer.camera()->setZNearCoefficient(0.001f);
 		viewer.camera()->setZClippingCoefficient(100);
 		viewer.set_background_color(vec4(0, 0, 0, 1));

@@ -52,6 +52,7 @@ namespace easy3d
 		static easy3d::PointCloud *particles;
 		static easy3d::PointCloud *smoothedParticles;
 		static easy3d::PointCloud *surfaceParticles;
+		static easy3d::PointCloud *involveParticles;
 
 		ViewerImGui(
 			const std::string& title = "Fluid Surface Reconstruction Visualizer",
@@ -117,6 +118,7 @@ namespace easy3d
 		bool drawParticles_ = true;
 		bool drawSmoothedParticles_ = false;
 		bool drawSurfaceParticles_ = false;
+		bool drawInvolveParticles_ = false;
 		bool drawNonEmptySpatialGrid_ = false;
 		bool drawSurfaceSpatialGrid_ = false;
 		bool drawSurfaceScalarGrid_ = false;

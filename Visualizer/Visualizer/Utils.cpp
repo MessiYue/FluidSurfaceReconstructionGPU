@@ -55,10 +55,22 @@ Utils::Configuration Utils::loadDataFromVisFile(const std::string &dir, const st
 		parseFloatFromStr(line, result.scalarCellSize);
 		//std::cout << result.scalarCellSize << std::endl;
 
-		//! particles .xyz file.
+		//! particle radius.
 		std::getline(file, line);
-		result.particlesFile = dir + line;
-		//std::cout << result.particlesFile << std::endl;
+		parseFloatFromStr(line, result.particleRadius);
+
+		//! particles.
+		unsigned int numParticles;
+		std::getline(file, line);
+		parseUIntFromStr(line, numParticles);
+		//std::cout << numParticles << std::endl;
+		result.rawParticles.resize(numParticles);
+		for (size_t i = 0; i < numParticles; ++i)
+		{
+			std::getline(file, line);
+			parseVector3DFFromStr(line, result.rawParticles[i].x,
+				result.rawParticles[i].y, result.rawParticles[i].z);
+		}
 
 		//! flag array.
 		unsigned int flagArraySize;
@@ -112,6 +124,7 @@ Utils::Configuration Utils::loadDataFromVisFile(const std::string &dir, const st
 		unsigned int numSurfaceParticles;
 		std::getline(file, line);
 		parseUIntFromStr(line, numSurfaceParticles);
+		//std::cout << numSurfaceParticles << std::endl;
 		result.surfaceParticles.resize(numSurfaceParticles);
 		if (numSurfaceParticles > 0)
 		{
@@ -123,7 +136,7 @@ Utils::Configuration Utils::loadDataFromVisFile(const std::string &dir, const st
 		unsigned int numInvolveParticles;
 		std::getline(file, line);
 		parseUIntFromStr(line, numInvolveParticles);
-		//std::cout << numSurfaceParticles << std::endl;
+		//std::cout << numInvolveParticles << std::endl;
 		result.involveParticles.resize(numInvolveParticles);
 		if (numInvolveParticles > 0)
 		{
@@ -152,12 +165,12 @@ Utils::Configuration Utils::loadDataFromVisFile(const std::string &dir, const st
 		//! surface mesh file path.
 		std::getline(file, line);
 		result.surfaceMeshFile = dir + line;
-		//std::cout << result.surfaceMeshFile << std::endl;
+		std::cout << result.surfaceMeshFile << std::endl;
 
 		//! neighbourhood extent radius.
 		std::getline(file, line);
 		parseFloatFromStr(line, result.neighbourhoodExtent);
-		//std::cout << result.neighbourhoodExtent << std::endl;
+		std::cout << result.neighbourhoodExtent << std::endl;
 	}
 	else
 		std::cerr << "Failed to read " << path << std::endl;
@@ -171,21 +184,18 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 	SurfaceMesh *surfaceMesh = SurfaceMeshIO::load(config.surfaceMeshFile);
 	ViewerImGui::surfaceMesh = surfaceMesh;
 	TrianglesDrawable* surface_drawable = surfaceMesh->add_triangles_drawable("surface");
-	//LinesDrawable *surface_frame_drawable = surfaceMesh->add_lines_drawable("surface_wireframe");
 	// The "point" property
 	auto vertices = surfaceMesh->get_vertex_property<vec3>("v:point");
 	// All the XYZ coordinates
 	const auto& points = vertices.vector();
 	// Upload the vertex positions to the GPU.
 	surface_drawable->update_vertex_buffer(points);
-	//surface_frame_drawable->update_vertex_buffer(points);
 	// computer vertex normals for each vertex
 	surfaceMesh->update_vertex_normals();
 	// The "normal" property
 	auto normals = surfaceMesh->get_vertex_property<vec3>("v:normal");
 	// Upload the vertex positions to the GPU.
 	surface_drawable->update_normal_buffer(normals.vector());
-	//surface_frame_drawable->update_normal_buffer(normals.vector());
 	// Now the vertex indices for all the triangles.
 	std::vector<unsigned int> indices;
 	std::size_t non_triangles = 0;
@@ -199,20 +209,16 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 			++non_triangles;
 	}
 	surface_drawable->update_index_buffer(indices);
-	//surface_frame_drawable->update_index_buffer(indices);
 	surface_drawable->set_default_color(vec3(0.4f, 0.8f, 0.8f)); 
-	//surface_frame_drawable->set_default_color(vec3(0.4f, 0.8f, 0.8f));
 	surface_drawable->set_visible(false);
-	//surface_frame_drawable->set_visible(false);
 
 	//!----------------------------------------------- particles -------------------------------------------.
 	
 	//£¡original particles.
-	std::vector<vec3> particlesPos = readParticlesFromXYZ(config.particlesFile, config);
 	PointCloud *particles = new PointCloud;
 	ViewerImGui::particles = particles;
-	for (auto &elem : particlesPos)
-		particles->add_vertex(elem);
+	for (size_t i = 0; i < config.rawParticles.size(); ++i)
+		particles->add_vertex(config.rawParticles[i]);
 	PointsDrawable* particlesDrawable = particles->add_points_drawable("particles");
 	auto particlePoints = particles->get_vertex_property<vec3>("v:point");
 	particlesDrawable->update_vertex_buffer(particlePoints.vector());
@@ -239,7 +245,7 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 	PointCloud *surfaceParticles = new PointCloud;
 	ViewerImGui::surfaceParticles = surfaceParticles;
 	for (size_t i = 0; i < config.surfaceParticles.size(); ++i)
-		surfaceParticles->add_vertex(config.smoothedParticles[config.surfaceParticles[i]]);
+		surfaceParticles->add_vertex(config.rawParticles[config.surfaceParticles[i]]);
 	PointsDrawable *surfaceParDrawable = surfaceParticles->add_points_drawable("surfaceParticles");
 	auto surfaceParticlesPoints = surfaceParticles->get_vertex_property<vec3>("v:point");
 	surfaceParDrawable->update_vertex_buffer(surfaceParticlesPoints.vector());
@@ -248,6 +254,21 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 	surfaceParDrawable->set_point_size(config.particleRadius);
 	surfaceParDrawable->set_lighting(true);
 	surfaceParDrawable->set_visible(false);
+
+	//! involve particles.
+	PointCloud *involveParticles = new PointCloud;
+	ViewerImGui::involveParticles = involveParticles;
+	if (config.involveParticles.size() > 0)
+		for (size_t i = 0; i < config.involveParticles.size(); ++i)
+			involveParticles->add_vertex(config.smoothedParticles[config.involveParticles[i]]);
+	PointsDrawable *involveParDrawable = involveParticles->add_points_drawable("involveParticles");
+	auto involveParticlesPoints = involveParticles->get_vertex_property<vec3>("v:point");
+	involveParDrawable->update_vertex_buffer(involveParticlesPoints.vector());
+	involveParDrawable->set_default_color(vec3(0.0, 0.6, 0.0));
+	involveParDrawable->set_per_vertex_color(true);
+	involveParDrawable->set_point_size(config.particleRadius);
+	involveParDrawable->set_lighting(true);
+	involveParDrawable->set_visible(false);
 
 	//!------------------------------------ spatial hashing grid ---------------------------------------------.
 	
@@ -279,9 +300,10 @@ void Utils::loadVisualizationScene(ViewerImGui * viewer, Configuration & config)
 	validCubesDrawable->set_default_color(vec3(0.8f, 0.8f, 0.0f));
 	validCubesDrawable->set_visible(false);
 
-	viewer->add_model(particles);
-	viewer->add_model(smoothedParticles);
 	viewer->add_model(surfaceParticles);
+	viewer->add_model(particles);
+	viewer->add_model(involveParticles);
+	viewer->add_model(smoothedParticles);
 	viewer->add_model(surfaceMesh);
 }
 

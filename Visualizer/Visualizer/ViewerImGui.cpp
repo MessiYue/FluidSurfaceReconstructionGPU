@@ -51,6 +51,7 @@ namespace easy3d {
 	easy3d::PointCloud *ViewerImGui::particles = nullptr;
 	easy3d::PointCloud *ViewerImGui::smoothedParticles = nullptr;
 	easy3d::PointCloud *ViewerImGui::surfaceParticles = nullptr;
+	easy3d::PointCloud *ViewerImGui::involveParticles = nullptr;
 
 	ViewerImGui::ViewerImGui(
 		const std::string& title /* = "Easy3D ImGui Viewer" */,
@@ -255,6 +256,7 @@ namespace easy3d {
 		ImGui::Checkbox("draw original particles", &drawParticles_);
 		ImGui::Checkbox("draw smoothed particles", &drawSmoothedParticles_);
 		ImGui::Checkbox("draw surface particles", &drawSurfaceParticles_);
+		ImGui::Checkbox("draw involve particles", &drawInvolveParticles_);
 		ImGui::Checkbox("draw non empty spatial hashing cell", &drawNonEmptySpatialGrid_);
 		ImGui::Checkbox("draw surface spatial hashing cell", &drawSurfaceSpatialGrid_);
 		ImGui::Checkbox("draw surface scalar field cell", &drawSurfaceScalarGrid_);
@@ -268,6 +270,7 @@ namespace easy3d {
 			ViewerImGui::surfaceMesh->triangles_drawable("surface")->set_visible(drawMeshFilling_);
 			ViewerImGui::particles->points_drawable("particles")->set_visible(drawParticles_);
 			ViewerImGui::smoothedParticles->points_drawable("smoothedParticles")->set_visible(drawSmoothedParticles_);
+			ViewerImGui::involveParticles->points_drawable("involveParticles")->set_visible(drawInvolveParticles_);
 			ViewerImGui::surfaceParticles->points_drawable("surfaceParticles")->set_visible(drawSurfaceParticles_);
 			ViewerImGui::surfaceMesh->lines_drawable("spatialFlagGrid")->set_visible(drawNonEmptySpatialGrid_);
 			ViewerImGui::surfaceMesh->lines_drawable("spatialSurfaceGrid")->set_visible(drawSurfaceSpatialGrid_);

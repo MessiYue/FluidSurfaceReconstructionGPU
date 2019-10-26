@@ -12,7 +12,7 @@ int main()
 	ReconstructorGPUOursZB05::ptr reconstructor =
 		std::shared_ptr<ReconstructorGPUOursZB05>(new ReconstructorGPUOursZB05(
 			"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
-			"frame_%06d", 20, 21));
+			"frame_%06d", 0, 30));
 
 	//ReconstructorGPUOursYu13::ptr reconstructor =
 	//	std::shared_ptr<ReconstructorGPUOursYu13>(new ReconstructorGPUOursYu13(

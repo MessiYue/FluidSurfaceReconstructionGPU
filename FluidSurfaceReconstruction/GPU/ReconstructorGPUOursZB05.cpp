@@ -3,22 +3,23 @@
 #include "CudaUtils.h"
 #include "ReconstructionCUDA.cuh"
 
-ReconstructorGPUOursZB05::ReconstructorGPUOursZB05(const std::string & directory, const std::string & filePattern,
-	unsigned int from, unsigned int to) : ReconstructorGPU(directory, filePattern, from, to) 
-{
-}
-
-ReconstructorGPUOursZB05::~ReconstructorGPUOursZB05() {}
+ReconstructorGPUOursZB05::ReconstructorGPUOursZB05(
+	const std::string & directory,
+	const std::string & filePattern,
+	unsigned int from, unsigned int to) :
+	ReconstructorGPUOurs(directory, filePattern, from, to) {}
 
 std::string ReconstructorGPUOursZB05::getAlgorithmType() { return std::string("Our Algorithm using ZB05 kernel"); }
 
-void ReconstructorGPUOursZB05::onBeginFrame(unsigned int frameIndex)
+void ReconstructorGPUOursZB05::onBeginFrame(unsigned int frameIndex) 
 {
-	//! nothing to do.
+	ReconstructorGPUOurs::onBeginFrame(frameIndex);
 }
 
 void ReconstructorGPUOursZB05::onFrameMove(unsigned int frameIndex)
 {
+	ReconstructorGPUOurs::onFrameMove(frameIndex);
+
 	//! step1: extraction of surface particles.
 	std::cout << "step1: extraction of surface particles....\n";
 	extractionOfSurfaceParticles();
@@ -51,11 +52,13 @@ void ReconstructorGPUOursZB05::onFrameMove(unsigned int frameIndex)
 
 void ReconstructorGPUOursZB05::onEndFrame(unsigned int frameIndex) 
 {
-	//! nothing to do.
+	ReconstructorGPUOurs::onEndFrame(frameIndex);
 }
 
 void ReconstructorGPUOursZB05::onInitialization()
 {	
+	ReconstructorGPUOurs::onInitialization();
+
 	//! isocontour value.
 	mSimParam.isoValue = -0.0001f;
 	//! search extent.
@@ -68,7 +71,7 @@ void ReconstructorGPUOursZB05::onInitialization()
 
 void ReconstructorGPUOursZB05::onFinalization() 
 {
-	//! nothing to do.
+	ReconstructorGPUOurs::onFinalization();
 }
 
 void ReconstructorGPUOursZB05::saveMiddleDataToVisFile(unsigned int frameIndex)
@@ -100,8 +103,21 @@ void ReconstructorGPUOursZB05::saveMiddleDataToVisFile(unsigned int frameIndex)
 			<< mScalarFieldGridInfo.resolution.z << std::endl;
 		file << mScalarFieldGridInfo.cellSize << std::endl;
 
-		//! particles .xyz file path.
-		file << (std::string(basename) + ".xyz") << std::endl;
+		//! particle radius.
+		file << mSimParam.particleRadius << std::endl;
+
+		//! particles.
+		file << mNumParticles << std::endl;
+		std::vector<ParticlePosition> rawParticles;
+		rawParticles.resize(mNumParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(rawParticles.data()),
+			mDeviceParticlesArray.grid, sizeof(ParticlePosition) * mNumParticles, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumParticles; ++i)
+		{
+			file << rawParticles[i].pos.x << ' ' << rawParticles[i].pos.y << ' '
+				<< rawParticles[i].pos.z << std::endl;
+		}
+		std::vector<ParticlePosition>().swap(rawParticles);
 
 		//! flag of spatial hashing grid.
 		std::vector<float> flagArray;
@@ -139,7 +155,7 @@ void ReconstructorGPUOursZB05::saveMiddleDataToVisFile(unsigned int frameIndex)
 			file << std::endl;
 		std::vector<uint>().swap(surfaceVerticesIndexArray);
 
-		//! surface particles, none.
+		//! surface particles.
 		std::vector<uint> surfaceParticlesFlagArray;
 		surfaceParticlesFlagArray.resize(mNumParticles);
 		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesFlagArray.data()),

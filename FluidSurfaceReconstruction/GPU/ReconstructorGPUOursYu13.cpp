@@ -3,14 +3,14 @@
 #include "ReconstructionCUDA.cuh"
 
 ReconstructorGPUOursYu13::ReconstructorGPUOursYu13(const std::string & directory, const std::string & filePattern,
-	unsigned int from, unsigned int to) : ReconstructorGPU(directory, filePattern, from ,to) {}
-
-ReconstructorGPUOursYu13::~ReconstructorGPUOursYu13() {}
+	unsigned int from, unsigned int to) : ReconstructorGPUOurs(directory, filePattern, from ,to) {}
 
 std::string ReconstructorGPUOursYu13::getAlgorithmType() { return std::string("Our Algorithm using anisotropic kernel"); }
 
 void ReconstructorGPUOursYu13::onBeginFrame(unsigned int frameIndex)
 {
+	ReconstructorGPUOurs::onBeginFrame(frameIndex);
+
 	//! memory allocation for extra data storage.
 	CUDA_CREATE_GRID_3D(mDeviceNumInvolveParticlesGrid, mSpatialGridInfo.resolution, uint);
 	CUDA_CREATE_GRID_3D(mDeviceNumInvolveParticlesGridScan, mSpatialGridInfo.resolution, uint);
@@ -23,6 +23,8 @@ void ReconstructorGPUOursYu13::onBeginFrame(unsigned int frameIndex)
 
 void ReconstructorGPUOursYu13::onFrameMove(unsigned int frameIndex)
 {
+	ReconstructorGPUOurs::onFrameMove(frameIndex);
+
 	//! step1: extraction of surface and involve particles.
 	std::cout << "step1: extraction of surface and involve particles....\n";
 	extractionOfSurfaceAndInvolveParticles();
@@ -63,6 +65,8 @@ void ReconstructorGPUOursYu13::onFrameMove(unsigned int frameIndex)
 
 void ReconstructorGPUOursYu13::onEndFrame(unsigned int frameIndex)
 {
+	ReconstructorGPUOurs::onEndFrame(frameIndex);
+
 	CUDA_DESTROY_GRID(mDeviceNumInvolveParticlesGrid);
 	CUDA_DESTROY_GRID(mDeviceNumInvolveParticlesGridScan);
 	CUDA_DESTROY_GRID(mDeviceParticlesMean);
@@ -73,10 +77,12 @@ void ReconstructorGPUOursYu13::onEndFrame(unsigned int frameIndex)
 
 void ReconstructorGPUOursYu13::onInitialization()
 {
+	ReconstructorGPUOurs::onInitialization();
+
 	//! isocontour value.
 	mSimParam.isoValue = 0.0f;
 	//! 
-	mSimParam.scSpGridResRatio = 4;
+	mSimParam.scSpGridResRatio = 3;
 	mSimParam.expandExtent = mSimParam.scSpGridResRatio;
 	//! appropriate scaling for spatial hashing grid.
 	mSimParam.spatialCellSizeScale = 1.3f;
@@ -92,143 +98,9 @@ void ReconstructorGPUOursYu13::onInitialization()
 	INITGRID_ZERO(mDeviceSVDMatricesArray);
 }
 
-void ReconstructorGPUOursYu13::onFinalization()
+void ReconstructorGPUOursYu13::onFinalization() 
 {
-	//! nothing to do.
-}
-
-void ReconstructorGPUOursYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
-{
-	//! save middle data for visualization.
-	char basename[256];
-	snprintf(basename, sizeof(basename), mFilePattern.c_str(), frameIndex);
-	std::string path = mFileDirectory + std::string(basename) + ".vis";
-	std::ofstream file(path.c_str());
-	if (file)
-	{
-		std::cout << "Writing to " << path << "...\n";
-
-		//! spatial hashing grid bounding box.
-		file << mSpatialGridInfo.minPos.x << ' ' << mSpatialGridInfo.minPos.y << ' '
-			<< mSpatialGridInfo.minPos.z << std::endl;
-		file << mSpatialGridInfo.maxPos.x << ' ' << mSpatialGridInfo.maxPos.y << ' '
-			<< mSpatialGridInfo.maxPos.z << std::endl;
-		file << mSpatialGridInfo.resolution.x << ' ' << mSpatialGridInfo.resolution.y << ' '
-			<< mSpatialGridInfo.resolution.z << std::endl;
-		file << mSpatialGridInfo.cellSize << std::endl;
-
-		//! scalar field grid bounding box.
-		file << mScalarFieldGridInfo.minPos.x << ' ' << mScalarFieldGridInfo.minPos.y
-			<< ' ' << mScalarFieldGridInfo.minPos.z << std::endl;
-		file << mScalarFieldGridInfo.maxPos.x << ' ' << mScalarFieldGridInfo.maxPos.y
-			<< ' ' << mScalarFieldGridInfo.maxPos.z << std::endl;
-		file << mScalarFieldGridInfo.resolution.x << ' ' << mScalarFieldGridInfo.resolution.y << ' '
-			<< mScalarFieldGridInfo.resolution.z << std::endl;
-		file << mScalarFieldGridInfo.cellSize << std::endl;
-
-		//! particles .xyz file path.
-		file << (std::string(basename) + ".xyz") << std::endl;
-
-		//! flag of spatial hashing grid.
-		std::vector<float> flagArray;
-		flagArray.resize(mDeviceFlagGrid.size);
-		checkCudaErrors(cudaMemcpy(static_cast<void*>(flagArray.data()), mDeviceFlagGrid.grid,
-			sizeof(float) * mDeviceFlagGrid.size, cudaMemcpyDeviceToHost));
-		unsigned int numOfValidFlag = 0;
-		for (size_t i = 0; i < flagArray.size(); ++i)
-		{
-			if (flagArray[i] > 0.0f)
-				++numOfValidFlag;
-		}
-		file << numOfValidFlag << std::endl;
-		for (size_t i = 0; i < flagArray.size(); ++i)
-		{
-			if (flagArray[i] > 0.0f)
-				file << i << ' ';
-		}
-		if (flagArray.size() > 0)
-			file << std::endl;
-		std::vector<float>().swap(flagArray);
-
-		//! smoothed particles.
-		file << mNumParticles << std::endl;
-		std::vector<ParticlePosition> smoothedParticles;
-		smoothedParticles.resize(mNumParticles);
-		checkCudaErrors(cudaMemcpy(static_cast<void*>(smoothedParticles.data()),
-			mDeviceParticlesSmoothed.grid, sizeof(ParticlePosition) * mNumParticles, cudaMemcpyDeviceToHost));
-		for (size_t i = 0; i < mNumParticles; ++i)
-		{
-			file << smoothedParticles[i].pos.x << ' ' << smoothedParticles[i].pos.y << ' '
-				<< smoothedParticles[i].pos.z << std::endl;
-		}
-		std::vector<ParticlePosition>().swap(smoothedParticles);
-
-		//! surface vertices' indcies of scalar field grid.
-		file << mNumSurfaceVertices << std::endl;
-		std::vector<uint> surfaceVerticesIndexArray;
-		surfaceVerticesIndexArray.resize(mNumSurfaceVertices);
-		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceVerticesIndexArray.data()),
-			mDeviceSurfaceVerticesIndexArray.grid, sizeof(uint) * mNumSurfaceVertices, cudaMemcpyDeviceToHost));
-		for (size_t i = 0; i < mNumSurfaceVertices; ++i)
-			file << surfaceVerticesIndexArray[i] << ' ';
-		if (mNumSurfaceVertices > 0)
-			file << std::endl;
-		std::vector<uint>().swap(surfaceVerticesIndexArray);
-
-		//! surface particles.
-		std::vector<uint> surfaceParticlesFlagArray;
-		surfaceParticlesFlagArray.resize(mNumParticles);
-		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesFlagArray.data()),
-			mDeviceSurfaceParticlesFlagGrid.grid, sizeof(uint) * mNumParticles, cudaMemcpyDeviceToHost));
-		uint numSurfaceParticles = 0;
-		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
-			if (surfaceParticlesFlagArray[i] == 1)
-				++numSurfaceParticles;
-		file << numSurfaceParticles << std::endl;
-		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
-		{
-			if (surfaceParticlesFlagArray[i] == 1)
-				file << i << ' ';
-		}
-		if (numSurfaceParticles > 0)
-			file << std::endl;
-		std::vector<uint>().swap(surfaceParticlesFlagArray);
-
-		//! involve particles.
-		file << mNumSurfaceParticles << std::endl;
-		std::vector<uint> involveParticlesIndexArray;
-		involveParticlesIndexArray.resize(mNumSurfaceParticles);
-		checkCudaErrors(cudaMemcpy(static_cast<void*>(involveParticlesIndexArray.data()),
-			mDeviceInvolveParticlesIndexArray.grid, sizeof(uint) * mNumSurfaceParticles, cudaMemcpyDeviceToHost));
-		for (size_t i = 0; i < mNumSurfaceParticles; ++i)
-			file << involveParticlesIndexArray[i] << ' ';
-		if (mNumSurfaceParticles > 0)
-			file << std::endl;
-		std::vector<uint>().swap(involveParticlesIndexArray);
-
-		//! valid surface cubes.
-		file << mNumValidSurfaceCubes << std::endl;
-		std::vector<uint> validCubesIndexArray;
-		validCubesIndexArray.resize(mNumValidSurfaceCubes);
-		checkCudaErrors(cudaMemcpy(static_cast<void*>(validCubesIndexArray.data()),
-			mDeviceValidSurfaceIndexArray.grid, sizeof(uint) * mDeviceValidSurfaceIndexArray.size, cudaMemcpyDeviceToHost));
-		for (size_t i = 0; i < mNumValidSurfaceCubes; ++i)
-			file << validCubesIndexArray[i] << ' ';
-		if (mNumValidSurfaceCubes > 0)
-			file << std::endl;
-
-		//! surface mesh file.
-		file << (std::string(basename) + ".obj") << std::endl;
-
-		//! neighbourhood extent radius.
-		file << mSimParam.smoothingRadius << std::endl;
-
-		file.close();
-
-		std::cout << "Finish writing " << path << ".\n";
-	}
-	else
-		std::cerr << "Failed to save the file: " << path << std::endl;
+	ReconstructorGPUOurs::onFinalization();
 }
 
 void ReconstructorGPUOursYu13::extractionOfSurfaceAndInvolveParticles()
@@ -406,4 +278,151 @@ void ReconstructorGPUOursYu13::computationOfScalarFieldGrid()
 		mDeviceNumInvolveParticlesGridScan,
 		mDeviceScalarFieldGrid);
 	getLastCudaError("launch computationOfScalarFieldGrid() failed");
+}
+
+void ReconstructorGPUOursYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
+{
+	//! save middle data for visualization.
+	char basename[256];
+	snprintf(basename, sizeof(basename), mFilePattern.c_str(), frameIndex);
+	std::string path = mFileDirectory + std::string(basename) + ".vis";
+	std::ofstream file(path.c_str());
+	if (file)
+	{
+		std::cout << "Writing to " << path << "...\n";
+
+		//! spatial hashing grid bounding box.
+		file << mSpatialGridInfo.minPos.x << ' ' << mSpatialGridInfo.minPos.y << ' '
+			<< mSpatialGridInfo.minPos.z << std::endl;
+		file << mSpatialGridInfo.maxPos.x << ' ' << mSpatialGridInfo.maxPos.y << ' '
+			<< mSpatialGridInfo.maxPos.z << std::endl;
+		file << mSpatialGridInfo.resolution.x << ' ' << mSpatialGridInfo.resolution.y << ' '
+			<< mSpatialGridInfo.resolution.z << std::endl;
+		file << mSpatialGridInfo.cellSize << std::endl;
+
+		//! scalar field grid bounding box.
+		file << mScalarFieldGridInfo.minPos.x << ' ' << mScalarFieldGridInfo.minPos.y
+			<< ' ' << mScalarFieldGridInfo.minPos.z << std::endl;
+		file << mScalarFieldGridInfo.maxPos.x << ' ' << mScalarFieldGridInfo.maxPos.y
+			<< ' ' << mScalarFieldGridInfo.maxPos.z << std::endl;
+		file << mScalarFieldGridInfo.resolution.x << ' ' << mScalarFieldGridInfo.resolution.y << ' '
+			<< mScalarFieldGridInfo.resolution.z << std::endl;
+		file << mScalarFieldGridInfo.cellSize << std::endl;
+
+		//! particle radius.
+		file << mSimParam.particleRadius << std::endl;
+
+		//! particles.
+		file << mNumParticles << std::endl;
+		std::vector<ParticlePosition> rawParticles;
+		rawParticles.resize(mNumParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(rawParticles.data()),
+			mDeviceParticlesArray.grid, sizeof(ParticlePosition) * mNumParticles, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumParticles; ++i)
+		{
+			file << rawParticles[i].pos.x << ' ' << rawParticles[i].pos.y << ' '
+				<< rawParticles[i].pos.z << std::endl;
+		}
+		std::vector<ParticlePosition>().swap(rawParticles);
+
+		//! flag of spatial hashing grid.
+		std::vector<float> flagArray;
+		flagArray.resize(mDeviceFlagGrid.size);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(flagArray.data()), mDeviceFlagGrid.grid,
+			sizeof(float) * mDeviceFlagGrid.size, cudaMemcpyDeviceToHost));
+		unsigned int numOfValidFlag = 0;
+		for (size_t i = 0; i < flagArray.size(); ++i)
+		{
+			if (flagArray[i] > 0.0f)
+				++numOfValidFlag;
+		}
+		file << numOfValidFlag << std::endl;
+		for (size_t i = 0; i < flagArray.size(); ++i)
+		{
+			if (flagArray[i] > 0.0f)
+				file << i << ' ';
+		}
+		if (flagArray.size() > 0)
+			file << std::endl;
+		std::vector<float>().swap(flagArray);
+
+		//! smoothed particles.
+		file << mNumParticles << std::endl;
+		std::vector<ParticlePosition> smoothedParticles;
+		smoothedParticles.resize(mNumParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(smoothedParticles.data()),
+			mDeviceParticlesSmoothed.grid, sizeof(ParticlePosition) * mNumParticles, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumParticles; ++i)
+		{
+			file << smoothedParticles[i].pos.x << ' ' << smoothedParticles[i].pos.y << ' '
+				<< smoothedParticles[i].pos.z << std::endl;
+		}
+		std::vector<ParticlePosition>().swap(smoothedParticles);
+
+		//! surface vertices' indcies of scalar field grid.
+		file << mNumSurfaceVertices << std::endl;
+		std::vector<uint> surfaceVerticesIndexArray;
+		surfaceVerticesIndexArray.resize(mNumSurfaceVertices);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceVerticesIndexArray.data()),
+			mDeviceSurfaceVerticesIndexArray.grid, sizeof(uint) * mNumSurfaceVertices, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumSurfaceVertices; ++i)
+			file << surfaceVerticesIndexArray[i] << ' ';
+		if (mNumSurfaceVertices > 0)
+			file << std::endl;
+		std::vector<uint>().swap(surfaceVerticesIndexArray);
+
+		//! surface particles.
+		std::vector<uint> surfaceParticlesFlagArray;
+		surfaceParticlesFlagArray.resize(mNumParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesFlagArray.data()),
+			mDeviceSurfaceParticlesFlagGrid.grid, sizeof(uint) * mNumParticles, cudaMemcpyDeviceToHost));
+		uint numSurfaceParticles = 0;
+		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+			if (surfaceParticlesFlagArray[i] == 1)
+				++numSurfaceParticles;
+		file << numSurfaceParticles << std::endl;
+		for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+		{
+			if (surfaceParticlesFlagArray[i] == 1)
+				file << i << ' ';
+		}
+		if (numSurfaceParticles > 0)
+			file << std::endl;
+		std::vector<uint>().swap(surfaceParticlesFlagArray);
+
+		//! involve particles.
+		file << mNumSurfaceParticles << std::endl;
+		std::vector<uint> involveParticlesIndexArray;
+		involveParticlesIndexArray.resize(mNumSurfaceParticles);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(involveParticlesIndexArray.data()),
+			mDeviceInvolveParticlesIndexArray.grid, sizeof(uint) * mNumSurfaceParticles, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumSurfaceParticles; ++i)
+			file << involveParticlesIndexArray[i] << ' ';
+		if (mNumSurfaceParticles > 0)
+			file << std::endl;
+		std::vector<uint>().swap(involveParticlesIndexArray);
+
+		//! valid surface cubes.
+		file << mNumValidSurfaceCubes << std::endl;
+		std::vector<uint> validCubesIndexArray;
+		validCubesIndexArray.resize(mNumValidSurfaceCubes);
+		checkCudaErrors(cudaMemcpy(static_cast<void*>(validCubesIndexArray.data()),
+			mDeviceValidSurfaceIndexArray.grid, sizeof(uint) * mDeviceValidSurfaceIndexArray.size, cudaMemcpyDeviceToHost));
+		for (size_t i = 0; i < mNumValidSurfaceCubes; ++i)
+			file << validCubesIndexArray[i] << ' ';
+		if (mNumValidSurfaceCubes > 0)
+			file << std::endl;
+
+		//! surface mesh file.
+		file << (std::string(basename) + ".obj") << std::endl;
+
+		//! neighbourhood extent radius.
+		file << mSimParam.smoothingRadius << std::endl;
+
+		file.close();
+
+		std::cout << "Finish writing " << path << ".\n";
+	}
+	else
+		std::cerr << "Failed to save the file: " << path << std::endl;
 }

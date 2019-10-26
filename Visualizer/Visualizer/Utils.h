@@ -27,30 +27,22 @@ public:
 		easy3d::ivec3 scalarRes;
 		float scalarCellSize;
 
-		//! particles .xyz file.
-		std::string particlesFile;
-
 		//! flag array.
 		std::vector<unsigned int> flagArray;
-
+		//! particles.
+		std::vector<easy3d::vec3> rawParticles;
 		//! smoothed particles.
 		std::vector<easy3d::vec3> smoothedParticles;
-
 		//£¡surface vertices.
 		std::vector<unsigned int> surfaceVerticesIndices;
-
 		//! surface particles.
 		std::vector<unsigned int> surfaceParticles;
-
 		//! involve particles.
 		std::vector<unsigned int> involveParticles;
-		
 		//! valid surface cubes.
 		std::vector<unsigned int> validSurfaceCubes;
-
 		//! surface mesh file path.
 		std::string surfaceMeshFile;
-
 		//! neighbourhood extent radius.
 		float neighbourhoodExtent;
 

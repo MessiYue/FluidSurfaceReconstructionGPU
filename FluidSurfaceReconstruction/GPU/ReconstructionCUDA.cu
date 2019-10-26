@@ -584,7 +584,7 @@ void estimationOfSurfaceVertices(
 
 	float3 pos = particleArray.grid[threadId].pos;
 	int3 index3D = getIndex3D(pos, scalarGridInfo.minPos, scalarGridInfo.cellSize);
-	uint extent = simParam.smoothingRadius / scalarGridInfo.cellSize + 1;
+	uint extent = /*simParam.smoothingRadius / scalarGridInfo.cellSize + 1*/3;
 	
 	//! mark the vertex inside the bounding box as surface vertex.
 	int3 minIndex3D = index3D - extent;
@@ -602,7 +602,7 @@ void estimationOfSurfaceVertices(
 				uint3 curIndex3D = make_uint3(xSp, ySp, zSp);
 				float3 vertex = getVertexPos(curIndex3D, scalarGridInfo.minPos, scalarGridInfo.cellSize);
 				float dist = length(vertex - pos);
-				if (dist < simParam.smoothingRadius)
+				if (dist < simParam.smoothingRadius * 1.5)
 				{
 					uint curIndex1D = index3DTo1D(curIndex3D, isSurfaceGrid.resolution);
 					isSurfaceGrid.grid[curIndex1D] = 1;
