@@ -41,8 +41,6 @@ protected:
 
 protected:
 	uint mNumSurfaceMeshVertices;							//! number of vertices per cell.
-	uint mNumSmoothedParticles;								//! number of smoothed particles.
-	uint mNumInvolveParticles;								//! number of involve particles.
 
 	//! gpu arrays or grids.
 	IsSurfaceGrid mDeviceIsSurfaceGrid;						//! whether the vertex is in surface region or not.

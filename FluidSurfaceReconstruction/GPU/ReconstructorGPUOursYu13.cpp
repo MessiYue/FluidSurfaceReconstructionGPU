@@ -195,7 +195,9 @@ void ReconstructorGPUOursYu13::compactationOfSurfaceVerticesAndParticles()
 	std::cout << "surface particles ratio: " << static_cast<double>(mNumSurfaceParticles)
 		/ mNumParticles << std::endl;
 
-	//! memory allocation for surface particles.
+	//! memory allocation for surface particles and surface vertices.
+	CUDA_CREATE_GRID_1D_SET(mDeviceSurfaceVerticesIndexArray, mNumSurfaceVertices,
+		mNumSurfaceVertices, 0, uint);
 	CUDA_CREATE_GRID_1D_SET(mDeviceInvolveParticlesIndexArray, mNumSurfaceParticles,
 		mNumSurfaceParticles, 0, uint);
 

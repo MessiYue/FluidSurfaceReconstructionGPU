@@ -261,6 +261,10 @@ void ReconstructorGPUOursZB05::compactationOfSurfaceVertices()
 		(mScalarFieldGridInfo.resolution.x * mScalarFieldGridInfo.resolution.y
 			* mScalarFieldGridInfo.resolution.z) << std::endl;
 
+	//! memory allocation for surface vertices' indices.
+	CUDA_CREATE_GRID_1D_SET(mDeviceSurfaceVerticesIndexArray, mNumSurfaceVertices,
+		mNumSurfaceVertices, 0, uint);
+
 	//! calculation of grid dim and block dim.
 	dim3 gridDim_, blockDim_;
 	calcGridDimBlockDim(mDeviceIsSurfaceGrid.size, gridDim_, blockDim_);

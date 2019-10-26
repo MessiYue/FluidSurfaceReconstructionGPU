@@ -103,7 +103,7 @@ void ReconstructorGPUOurs::onBeginFrame(unsigned int frameIndex)
 {
 	CUDA_CREATE_GRID_3D(mDeviceIsSurfaceGrid, mScalarFieldGridInfo.resolution, uint);
 	CUDA_CREATE_GRID_3D(mDeviceIsSurfaceGridScan, mScalarFieldGridInfo.resolution, uint);
-	CUDA_CREATE_GRID_3D(mDeviceSurfaceVerticesIndexArray, mScalarFieldGridInfo.resolution, uint);
+	//CUDA_CREATE_GRID_3D(mDeviceSurfaceVerticesIndexArray, mScalarFieldGridInfo.resolution, uint);
 }
 
 void ReconstructorGPUOurs::onFrameMove(unsigned int frameIndex) {}
