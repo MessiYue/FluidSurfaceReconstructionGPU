@@ -9,7 +9,10 @@ ReconstructorGPUOursZB05::ReconstructorGPUOursZB05(
 	unsigned int from, unsigned int to) :
 	ReconstructorGPUOurs(directory, filePattern, from, to) {}
 
-std::string ReconstructorGPUOursZB05::getAlgorithmType() { return std::string("Our Algorithm using ZB05 kernel"); }
+std::string ReconstructorGPUOursZB05::getAlgorithmType() 
+{ 
+	return std::string("Our Algorithm using ZB05 kernel");
+}
 
 void ReconstructorGPUOursZB05::onBeginFrame(unsigned int frameIndex) 
 {
@@ -282,7 +285,7 @@ void ReconstructorGPUOursZB05::compactationOfSurfaceVertices()
 
 void ReconstructorGPUOursZB05::computationOfScalarFieldGrid()
 {
-	if (mNumSurfaceVertices <= 0)
+	if (mNumSurfaceVertices == 0)
 	{
 		std::cerr << "No surface vertex detected!\n";
 		return;

@@ -85,7 +85,7 @@ void launchDetectValidSurfaceCubes(
 	dim3 blockDim_,										// cuda block dimension.
 	SurfaceVerticesIndexArray svIndexArray,				// compacted surface vertices' indices of grid.
 	uint numSurfaceVertices,							// number of surface vertices.
-	ScalarFieldGrid vGrid,									// scalar field.
+	ScalarFieldGrid vGrid,								// scalar field.
 	IsValidSurfaceGrid isValidSurfaceGrid,				// valid tag of surface cubes.
 	NumVerticesGrid numVerticesGrid,					// number of vertices per cell of grid.
 	IsSurfaceGrid isSfGrid,								// surface vertex tag.
@@ -210,6 +210,31 @@ launchComputationOfScalarFieldGrid(
 	NumInvolveParticlesGrid numInvolveParticlesGridScan,	// exclusive prefix sum of NumInvolveParticlesGrid.
 	ScalarFieldGrid ScalarFieldGrid);						// scalar field grid.
 
+//! -----------------------------------Akinci12 method------------------------------------------------
+
+//! func: extraction of surface particles using color field method.
+extern "C" void
+launchExtractionOfSurfaceParticlesForAkinci(
+	dim3 gridDim_,											// cuda grid dimension.
+	dim3 blockDim_,											// cuda block dimension.
+	SimParam simParam,										// simulation parameters.
+	ParticleArray particlesArray,							// particles array.
+	ScalarFieldGrid particlesDensityArray,					// particles densities array.
+	ParticleIndexRangeGrid particleIndexRangeGrid,			// paritcle index information grid.
+	GridInfo spatialGridInfo,								// spatial hashing grid information.
+	IsSurfaceGrid surfaceParticlesFlagGrid);				// surface particles' flag array.
+
+//! func: detection of valid surface vertices.
+extern "C" void
+launchDetectionOfValidSurfaceCubesForAkinci(
+	dim3 gridDim_,											// cuda grid dimension.
+	dim3 blockDim_,											// cuda block dimension.
+	SurfaceVerticesIndexArray svIndexArray,					// compacted surface vertices' indices array.
+	uint numSurfaceVertices,								// length of svIndexArray.
+	ScalarFieldGrid vGrid,									// scalar field grid.
+	IsValidSurfaceGrid isValidSurfaceGrid,					// whether the cell is valid or not.
+	IsSurfaceGrid isSfGrid,									// whether the corresponding grid point is in surface region or not.
+	SimParam params);
 
 //! -----------------------------------Spatial Grid establish------------------------------------------
 //! func: establish of spatial grid for neighborhood researching.
@@ -296,6 +321,18 @@ float anisotropicWOpt(float3 r)
 	return SIGMA * x * x * x;
 }
 
+//! func: this is for color field gradient.
+inline __host__ __device__
+float wSpikyGrad(const float3 &r, const float &h, const float &h2)
+{
+	float dist = length(r);
+	if (dist >= h)
+		return 0.0f;
+
+	float x = 1.0 - dist / h;
+	return -45.0 / (3.1415926535 * h2 * h2) * x * x;
+}
+
 //! ------------------------------------------Common---------------------------------------------
 
 inline __host__ __device__ 
@@ -378,21 +415,6 @@ float getValue(int3 index3D, ScalarFieldGrid vGrid)
 	return 0.f;
 }
 
-//inline __host__ __device__ 
-//float getValue(int3 index3D, IntGrid sfVerIndexGrid, VerAkGrid sfVerGrid)
-//{
-//	if (isValid(index3D, sfVerIndexGrid.resolution))
-//	{
-//		uint index1D = index3DTo1D(make_uint3(index3D), sfVerIndexGrid.resolution);
-//		int indexSfGrid = sfVerIndexGrid.grid[index1D];
-//		if (indexSfGrid >= 0 && indexSfGrid < sfVerGrid.count)
-//			return sfVerGrid.grid[indexSfGrid].value;
-//		return 0.f;
-//	}
-//
-//	return 0.f;
-//}
-
 inline __host__ __device__ 
 float3 getVertexNorm(uint3 index3D, ScalarFieldGrid vGrid)
 {
@@ -406,26 +428,6 @@ float3 getVertexNorm(uint3 index3D, ScalarFieldGrid vGrid)
 	n = normalize(n);
 	return n;
 }
-
-//inline __host__ __device__ 
-//float3 getVertexNorm(uint3 index3D, IntGrid sfVerIndexGrid, VerAkGrid sfVerGrid)
-//{
-//	int i = index3D.x;
-//	int j = index3D.y;
-//	int k = index3D.z;
-//	float3 n;
-//	n.x = getValue(make_int3(i - 1, j, k), sfVerIndexGrid, sfVerGrid) -
-//		getValue(make_int3(i + 1, j, k), sfVerIndexGrid, sfVerGrid);
-//
-//	n.y = getValue(make_int3(i, j - 1, k), sfVerIndexGrid, sfVerGrid) -
-//		getValue(make_int3(i, j + 1, k), sfVerIndexGrid, sfVerGrid);
-//
-//	n.z = getValue(make_int3(i, j, k - 1), sfVerIndexGrid, sfVerGrid) -
-//		getValue(make_int3(i, j, k + 1), sfVerIndexGrid, sfVerGrid);
-//
-//	n = normalize(n);
-//	return n;
-//}
 
 inline __host__ __device__
 float3 calcNormal(float3 v0, float3 v1, float3 v2)

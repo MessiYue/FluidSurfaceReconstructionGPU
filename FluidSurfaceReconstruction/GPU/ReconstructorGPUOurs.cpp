@@ -142,7 +142,7 @@ void ReconstructorGPUOurs::onFinalization() {}
 
 void ReconstructorGPUOurs::detectionOfValidSurfaceCubes()
 {
-	if (mNumSurfaceVertices <= 0)
+	if (mNumSurfaceVertices == 0)
 	{
 		std::cerr << "No surface vertex detected!\n";
 		return;
@@ -159,19 +159,31 @@ void ReconstructorGPUOurs::detectionOfValidSurfaceCubes()
 	calcGridDimBlockDim(mNumSurfaceVertices, gridDim_, blockDim_);
 
 	//! launch the detection kernel function.
-	launchDetectValidSurfaceCubes(gridDim_, blockDim_, mDeviceSurfaceVerticesIndexArray, mNumSurfaceVertices,
-		mDeviceScalarFieldGrid, mDeviceIsValidSurfaceGrid, mDeviceNumVerticesGrid, mDeviceIsSurfaceGrid, mSimParam);
+	launchDetectValidSurfaceCubes(
+		gridDim_,
+		blockDim_,
+		mDeviceSurfaceVerticesIndexArray,
+		mNumSurfaceVertices,
+		mDeviceScalarFieldGrid,
+		mDeviceIsValidSurfaceGrid,
+		mDeviceNumVerticesGrid, 
+		mDeviceIsSurfaceGrid,
+		mSimParam);
 }
 
 void ReconstructorGPUOurs::compactationOfValidSurafceCubes()
 {
 	//! calculation of exclusive prefix sum of mDeviceIsValidSurfaceGrid.
-	mNumValidSurfaceCubes = launchThrustExclusivePrefixSumScan(mDeviceIsValidSurfaceGridScan.grid,
-		mDeviceIsValidSurfaceGrid.grid, (uint)mDeviceIsValidSurfaceGrid.size);
+	mNumValidSurfaceCubes = launchThrustExclusivePrefixSumScan(
+		mDeviceIsValidSurfaceGridScan.grid,
+		mDeviceIsValidSurfaceGrid.grid,
+		(uint)mDeviceIsValidSurfaceGrid.size);
 
 	//! calculation of exclusive prefix sum of mDeviceNumVerticesGrid.
-	mNumSurfaceMeshVertices = launchThrustExclusivePrefixSumScan(mDeviceNumVerticesGridScan.grid,
-		mDeviceNumVerticesGrid.grid, (uint)mDeviceNumVerticesGrid.size);
+	mNumSurfaceMeshVertices = launchThrustExclusivePrefixSumScan(
+		mDeviceNumVerticesGridScan.grid,
+		mDeviceNumVerticesGrid.grid,
+		(uint)mDeviceNumVerticesGrid.size);
 
 	if (mNumSurfaceMeshVertices <= 0)
 	{
@@ -191,8 +203,13 @@ void ReconstructorGPUOurs::compactationOfValidSurafceCubes()
 	calcGridDimBlockDim(mNumSurfaceVertices, gridDim_, blockDim_);
 
 	//! launch the compactation kernel function.
-	launchCompactValidSurfaceCubes(gridDim_, blockDim_, mDeviceValidSurfaceIndexArray,
-		mDeviceIsValidSurfaceGridScan, mDeviceIsValidSurfaceGrid, mSimParam);
+	launchCompactValidSurfaceCubes(
+		gridDim_,
+		blockDim_,
+		mDeviceValidSurfaceIndexArray,
+		mDeviceIsValidSurfaceGridScan,
+		mDeviceIsValidSurfaceGrid,
+		mSimParam);
 
 }
 
@@ -213,7 +230,15 @@ void ReconstructorGPUOurs::generationOfSurfaceMeshUsingMC()
 	calcGridDimBlockDim(mNumValidSurfaceCubes, gridDim_, blockDim_);
 
 	//! launch the generation kernel function.
-	launchGenerateTriangles(gridDim_, blockDim_, mDeviceSurfaceVerticesIndexArray, mDeviceValidSurfaceIndexArray,
-		mScalarFieldGridInfo, mDeviceNumVerticesGridScan, mDeviceScalarFieldGrid, mDeviceVertexArray,
-		mDeviceNormalArray, mSimParam);
+	launchGenerateTriangles(
+		gridDim_, 
+		blockDim_,
+		mDeviceSurfaceVerticesIndexArray,
+		mDeviceValidSurfaceIndexArray,
+		mScalarFieldGridInfo,
+		mDeviceNumVerticesGridScan,
+		mDeviceScalarFieldGrid,
+		mDeviceVertexArray,
+		mDeviceNormalArray,
+		mSimParam);
 }

@@ -18,6 +18,7 @@ ReconstructorGPU::ReconstructorGPU(
 	mFileDirectory(directory),
 	mFilePattern(filePattern),
 	mFrameFrom(from), mFrameTo(to),
+	mSaveObjFile(true),
 	mSaveVisFile(false) {}
 
 void ReconstructorGPU::reconstruct()
@@ -77,6 +78,8 @@ unsigned int ReconstructorGPU::getNumberOfParticles() const { return mNumParticl
 
 std::vector<double> ReconstructorGPU::getTimeConsumingSequence() const { return mTimeConsuming; }
 
+void ReconstructorGPU::setOutputMeshFile(bool flag) { mSaveObjFile = flag; }
+
 void ReconstructorGPU::setOutputVisualizeFile(bool flag) { mSaveVisFile = flag; }
 
 void ReconstructorGPU::beginFrame(unsigned int frameIndex)
@@ -122,7 +125,8 @@ void ReconstructorGPU::frameMove(unsigned int frameIndex)
 void ReconstructorGPU::endFrame(unsigned int frameIndex)
 {
 	//! first of all, save the mesh to file.
-	saveFluidSurfaceObjToFile(frameIndex);
+	if(mSaveObjFile)
+		saveFluidSurfaceObjToFile(frameIndex);
 
 	CUDA_DESTROY_GRID(mDeviceParticlesArray);
 	CUDA_DESTROY_GRID(mDeviceParticlesDensityArray);

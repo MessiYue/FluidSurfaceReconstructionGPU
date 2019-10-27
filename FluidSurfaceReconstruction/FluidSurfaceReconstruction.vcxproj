@@ -84,6 +84,7 @@
     <CudaCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="GPU\MarchingCubesCPU.cpp" />
     <ClCompile Include="GPU\MarchingCubesHelper.cpp" />
     <ClCompile Include="GPU\MathVector.cpp" />
     <ClCompile Include="GPU\ReconstructorGPU.cpp" />
@@ -96,6 +97,7 @@
   <ItemGroup>
     <ClInclude Include="GPU\CudaUtils.h" />
     <ClInclude Include="GPU\Defines.h" />
+    <ClInclude Include="GPU\MarchingCubesCPU.h" />
     <ClInclude Include="GPU\MarchingCubesHelper.h" />
     <ClInclude Include="GPU\MathVector.h" />
     <ClInclude Include="GPU\ReconstructorGPU.h" />

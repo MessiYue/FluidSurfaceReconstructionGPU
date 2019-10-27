@@ -923,6 +923,108 @@ void computationOfScalarFieldGrid(
 	scalarFieldGrid.grid[svIndex].value = sum - 0.5f;
 }
 
+//! func: extraction of surface particles using color field method.
+__global__
+void extractionOfSurfaceParticlesUsingColorField(
+	SimParam simParam,									// input, simulation parameters.
+	ParticleArray particlesArray,						// input, particles array.
+	ScalarFieldGrid particlesDensityArray,				// input, particles densities array.
+	ParticleIndexRangeGrid particleIndexRangeGrid,		// input, particles' index range for each cell.
+	GridInfo spatialGridInfo,							// input, spatial hashing grid information.
+	IsSurfaceGrid surfaceParticlesFlagGrid)				// output, surface particles' flag array.
+{
+	uint threadId = getThreadIdGlobal();
+	if (threadId >= particlesArray.size)
+		return;
+
+	float3 pos = particlesArray.grid[threadId].pos;
+	int3 cellId = getIndex3D(pos, spatialGridInfo.minPos, spatialGridInfo.cellSize);
+
+	int3 minCellId = cellId - 1;
+	int3 maxCellId = cellId + 1;
+	minCellId = clamp(minCellId, make_int3(0, 0, 0), make_int3(particleIndexRangeGrid.resolution.x - 1,
+		particleIndexRangeGrid.resolution.y - 1, particleIndexRangeGrid.resolution.z - 1));
+	maxCellId = clamp(maxCellId, make_int3(0, 0, 0), make_int3(particleIndexRangeGrid.resolution.x - 1,
+		particleIndexRangeGrid.resolution.y - 1, particleIndexRangeGrid.resolution.z - 1));
+	
+	uint numNeighbors = 0;
+	float3 sum = make_float3(0.0f, 0.0f, 0.0f);
+	for (int zSp = minCellId.z; zSp <= maxCellId.z; zSp++)
+	{
+		for (int ySp = minCellId.y; ySp <= maxCellId.y; ySp++)
+		{
+			for (int xSp = minCellId.x; xSp <= maxCellId.x; xSp++)
+			{
+				uint3 index3D = make_uint3(xSp, ySp, zSp);
+				uint index1D = index3DTo1D(index3D, particleIndexRangeGrid.resolution);
+				IndexRange range = particleIndexRangeGrid.grid[index1D];
+				if (range.start == 0xffffffff)
+					continue;
+				for (uint i = range.start; i < range.end; ++i)
+				{
+					float3 neighborPos = particlesArray.grid[i].pos;
+					float3 r = pos - neighborPos;
+					if (dot(r, r) > 0.0f)
+					{
+						++numNeighbors;
+						float grad = wSpikyGrad(r, simParam.smoothingRadius, simParam.smoothingRadiusSq);
+						r = normalize(r);
+						sum += simParam.particleMass / particlesDensityArray.grid[i].value * grad * r;
+					}
+				}
+			}
+		}
+	}
+
+	if (numNeighbors < 25)
+	{
+		surfaceParticlesFlagGrid.grid[threadId] = 1;
+	}
+	else
+	{
+		float value = length(sum);
+		if (value > 3.0f)
+			surfaceParticlesFlagGrid.grid[threadId] = 1;
+	}
+}
+
+//! func: detection of valid surface cubes for Akinci's mehtod.
+__global__
+void detectionOfValidSurfaceCubesForAkinci(
+	SurfaceVerticesIndexArray svIndexArray,		// input, compacted surface vertices' indices array.
+	uint numSurfaceVertices,					// input, length of svIndexArray.
+	ScalarFieldGrid vGrid,						// input, scalar field grid.
+	IsValidSurfaceGrid isValidSurfaceGrid,		// output, whether the cell is valid or not.
+	IsSurfaceGrid isSfGrid,						// input, whether the corresponding grid point is in surface region or not.
+	SimParam params)
+{
+	uint threadId = getThreadIdGlobal();
+	if (threadId >= svIndexArray.size || threadId >= numSurfaceVertices)
+		return;
+	// get 3D index and boundary handling.
+	uint cubeIndex1D = svIndexArray.grid[threadId];
+	uint3 cubeIndex3D = index1DTo3D(cubeIndex1D, vGrid.resolution);
+	if (cubeIndex3D.x >= vGrid.resolution.x - 1 ||
+		cubeIndex3D.y >= vGrid.resolution.y - 1 ||
+		cubeIndex3D.z >= vGrid.resolution.z - 1)
+		return;
+	// get 8 corners of the cube.
+	uint cornerIndex1Ds[8];
+	getCornerIndex1Ds(cubeIndex3D, vGrid.resolution, cornerIndex1Ds);
+
+	// get corresponding situation flag.
+	uint vertexFlag = getVertexFlag(cornerIndex1Ds, vGrid, params.isoValue);
+
+	uint numVertices = 0;
+	// 八个顶点都是表面顶点才进行三角化, 这里必须要，否则会出现双层的网格
+	if (isAllSfVertex(cornerIndex1Ds, isSfGrid))
+	{
+		numVertices = tex1Dfetch(numVerticesTex, vertexFlag);
+	}
+
+	isValidSurfaceGrid.grid[threadId] = numVertices > 0 ? 1 : 0;
+}
+
 //! -----------------------------------------launch functions for cuda kernel functions----------------------------------
 
 extern "C"
@@ -1111,6 +1213,8 @@ uint launchThrustExclusivePrefixSumScan(uint* output, uint* input, uint numEleme
 	return sum;
 }
 
+//! ---------------------------------------Our method for anisotropic kernel----------------------------
+
 void launchExtractionOfSurfaceAndInvolveParticles(
 	dim3 gridDim_,
 	dim3 blockDim_,
@@ -1244,6 +1348,48 @@ void launchComputationOfScalarFieldGrid(
 		numInvolveParticlesGrid,
 		numInvolveParticlesGridScan,
 		scalarFieldGrid);
+	cudaDeviceSynchronize();
+}
+
+//! -----------------------------------------Akinci12 method----------------------------------------
+
+void launchExtractionOfSurfaceParticlesForAkinci(
+	dim3 gridDim_,
+	dim3 blockDim_,
+	SimParam simParam,
+	ParticleArray particlesArray,
+	ScalarFieldGrid particlesDensityArray,
+	ParticleIndexRangeGrid particleIndexRangeGrid,
+	GridInfo spatialGridInfo,
+	IsSurfaceGrid surfaceParticlesFlagGrid)
+{
+	extractionOfSurfaceParticlesUsingColorField << < gridDim_, blockDim_ >> > (
+		simParam,
+		particlesArray,
+		particlesDensityArray,
+		particleIndexRangeGrid,
+		spatialGridInfo,
+		surfaceParticlesFlagGrid);
+	cudaDeviceSynchronize();
+}
+
+void launchDetectionOfValidSurfaceCubesForAkinci(
+	dim3 gridDim_,
+	dim3 blockDim_,
+	SurfaceVerticesIndexArray svIndexArray,		
+	uint numSurfaceVertices,					
+	ScalarFieldGrid vGrid,						
+	IsValidSurfaceGrid isValidSurfaceGrid,		
+	IsSurfaceGrid isSfGrid,						
+	SimParam params)
+{
+	detectionOfValidSurfaceCubesForAkinci << < gridDim_, blockDim_ >> > (
+		svIndexArray,
+		numSurfaceVertices,
+		vGrid,
+		isValidSurfaceGrid,
+		isSfGrid,
+		params);
 	cudaDeviceSynchronize();
 }
 

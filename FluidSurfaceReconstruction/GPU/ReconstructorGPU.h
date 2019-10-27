@@ -21,6 +21,7 @@ public:
 	virtual void reconstruct();
 	virtual std::string getAlgorithmType() = 0;
 
+	void setOutputMeshFile(bool flag);
 	void setOutputVisualizeFile(bool flag);
 
 	SimParam getSimulationParameters() const;
@@ -64,6 +65,7 @@ protected:
 
 protected:
 
+	bool mSaveObjFile;										//! tag for saving mesh file(.obj).
 	bool mSaveVisFile;										//! tag for saving visualization file(.vis)
 	Timer::ptr mTimer;										//! timer for recording.
 	std::string mFilePattern;								//! particles' file name's pattern.

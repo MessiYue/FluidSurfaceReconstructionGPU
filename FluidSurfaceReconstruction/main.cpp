@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 
+#include "GPU/ReconstructorGPUAkinci12.h"
 #include "GPU/ReconstructorGPUOursZB05.h"
 #include "GPU/ReconstructorGPUOursYu13.h"
 
@@ -14,11 +15,17 @@ int main()
 	//		"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
 	//		"frame_%06d", 20, 21));
 
-	ReconstructorGPUOursYu13::ptr reconstructor =
-		std::shared_ptr<ReconstructorGPUOursYu13>(new ReconstructorGPUOursYu13(
-			"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
-			"frame_%06d", 20, 21));
+	//ReconstructorGPUOursYu13::ptr reconstructor =
+	//	std::shared_ptr<ReconstructorGPUOursYu13>(new ReconstructorGPUOursYu13(
+	//		"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
+	//		"frame_%06d", 20, 21));
 
+	ReconstructorGPUAkinci12::ptr reconstructor =
+		std::shared_ptr<ReconstructorGPUAkinci12>(new ReconstructorGPUAkinci12(
+			"C:/Users/ywc/Desktop/FluidSimRet/FallPciSph/",
+			"frame_%06d", 0, 60));
+
+	reconstructor->setOutputMeshFile(true);
 	reconstructor->setOutputVisualizeFile(true);
 	reconstructor->reconstruct();
 
