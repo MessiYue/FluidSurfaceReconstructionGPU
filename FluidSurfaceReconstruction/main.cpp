@@ -10,24 +10,29 @@
 
 int main()
 {
-	//ReconstructorGPUOursZB05::ptr reconstructor =
-	//	std::shared_ptr<ReconstructorGPUOursZB05>(new ReconstructorGPUOursZB05(
-	//		"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
-	//		"frame_%06d", 20, 21));
+	unsigned int testCount = 1;
+	for (unsigned int i = 0; i < testCount; ++i)
+	{
+		ReconstructorGPUOursZB05::ptr reconstructor =
+			std::shared_ptr<ReconstructorGPUOursZB05>(new ReconstructorGPUOursZB05(
+				"C:/Users/ywc/Desktop/FluidSimRet/Hemisphere/",
+				"frame_%06d", 0, 23));
 
-	//ReconstructorGPUOursYu13::ptr reconstructor =
-	//	std::shared_ptr<ReconstructorGPUOursYu13>(new ReconstructorGPUOursYu13(
-	//		"C:/Users/ywc/Desktop/FluidSimRet/DamBreakingPciSph/",
-	//		"frame_%06d", 20, 21));
+		//ReconstructorGPUOursYu13::ptr reconstructor =
+		//	std::shared_ptr<ReconstructorGPUOursYu13>(new ReconstructorGPUOursYu13(
+		//		"C:/Users/ywc/Desktop/FluidSimRet/Hemisphere/",
+		//		"frame_%06d", 22, 23));
 
-	ReconstructorGPUAkinci12::ptr reconstructor =
-		std::shared_ptr<ReconstructorGPUAkinci12>(new ReconstructorGPUAkinci12(
-			"C:/Users/ywc/Desktop/FluidSimRet/FallPciSph/",
-			"frame_%06d", 0, 60));
+		//ReconstructorGPUAkinci12::ptr reconstructor =
+		//	std::shared_ptr<ReconstructorGPUAkinci12>(new ReconstructorGPUAkinci12(
+		//		"C:/Users/ywc/Desktop/FluidSimRet/BunnyDrop/",
+		//		"frame_%06d", 0, 23));
 
-	reconstructor->setOutputMeshFile(true);
-	reconstructor->setOutputVisualizeFile(true);
-	reconstructor->reconstruct();
+		reconstructor->setOutputMeshFile(false);
+		reconstructor->setOutputConfigFile(true);
+		reconstructor->setOutputVisualizeFile(false);
+		reconstructor->reconstruct();
+	}
 
     return 0;
 }

@@ -19,7 +19,8 @@ ReconstructorGPU::ReconstructorGPU(
 	mFilePattern(filePattern),
 	mFrameFrom(from), mFrameTo(to),
 	mSaveObjFile(true),
-	mSaveVisFile(false) {}
+	mSaveVisFile(false),
+	mSaveCfgFile(false) {}
 
 void ReconstructorGPU::reconstruct()
 {
@@ -31,8 +32,6 @@ void ReconstructorGPU::reconstruct()
 
 	//! initialization.
 	initialization();
-
-	mTimeConsuming.clear();
 
 	//! reconstructing frame by frame.
 	for (auto frameIndex = mFrameFrom; frameIndex < mFrameTo; ++frameIndex)
@@ -61,12 +60,19 @@ void ReconstructorGPU::reconstruct()
 		if (mSaveVisFile)
 			saveMiddleDataToVisFile(frameIndex);
 
+		//! get the configuration.
+		if(mSaveCfgFile)
+			getConfiguration(frameIndex);
+
 		//! at the end of each frame, do some post-process here.
 		endFrame(frameIndex);
 	}
 
 	//! save the time consumed to file.
 	saveTimeConsumingRecordToFile();
+
+	if (mSaveCfgFile)
+		saveConfigurationToFile();
 
 	//! finalization.
 	finalization();
@@ -79,6 +85,8 @@ unsigned int ReconstructorGPU::getNumberOfParticles() const { return mNumParticl
 std::vector<double> ReconstructorGPU::getTimeConsumingSequence() const { return mTimeConsuming; }
 
 void ReconstructorGPU::setOutputMeshFile(bool flag) { mSaveObjFile = flag; }
+
+void ReconstructorGPU::setOutputConfigFile(bool flag) { mSaveCfgFile = flag; }
 
 void ReconstructorGPU::setOutputVisualizeFile(bool flag) { mSaveVisFile = flag; }
 
@@ -143,6 +151,7 @@ void ReconstructorGPU::initialization()
 {
 	//! timer for recording.
 	mTimer = std::shared_ptr<Timer>(new Timer());
+	mStageTimer = std::shared_ptr<Timer>(new Timer());
 
 	mSimParam.spatialCellSizeScale = 1.0;
 
@@ -164,6 +173,12 @@ void ReconstructorGPU::initialization()
 	INITGRID_ZERO(mDeviceCellParticleIndexArray);
 	INITGRID_ZERO(mDeviceFlagGrid);
 
+	mTimeConsuming.clear();
+	mSurfaceParRatio.clear();
+	mSurfaceVerRatio.clear();
+	mNumTriangles.clear();
+	mStageTimeConsuming.clear();
+
 	//! extra action for sub class.
 	onInitialization();
 }
@@ -175,6 +190,8 @@ void ReconstructorGPU::finalization()
 	safeCudaFree((void**)&mDeviceEdgeIndicesOfTriangleTable);
 	safeCudaFree((void**)&mDeviceNumVerticesTable);
 	safeCudaFree((void**)&mDeviceVertexIndicesOfEdgeTable);
+
+
 
 	//! extra action for sub class.
 	onFinalization();
@@ -302,7 +319,9 @@ void ReconstructorGPU::saveTimeConsumingRecordToFile()
 
 	std::string fileName = getAlgorithmType();
 	std::string path = mFileDirectory + fileName + ".time";
-	std::ofstream file(path.c_str());
+	std::ofstream file;
+	file.open(path.c_str(), std::ios::out | std::ios::app);
+
 	if (file)
 	{
 		std::cout << "Writing " << path << "...\n";
@@ -311,8 +330,65 @@ void ReconstructorGPU::saveTimeConsumingRecordToFile()
 			double record = mTimeConsuming[frameIndex - mFrameFrom];
 			file << record << ' ';
 		}
+		file << std::endl;
 		file.close();
 	}
 	else
 		std::cerr << "Failed to save the file: " << path << std::endl;
+}
+
+void ReconstructorGPU::saveConfigurationToFile()
+{
+	assert(mSurfaceParRatio.size() > 0 
+		&& mSurfaceVerRatio.size() > 0 
+		&& mNumTriangles.size() > 0);
+
+	double avgSurParRatio = 0.0f;
+	double avgSurVerRatio = 0.0f;
+	int avgNumTriangles = 0;
+	
+	for (auto &elem : mSurfaceParRatio)
+		avgSurParRatio += elem;
+	avgSurParRatio /= mSurfaceParRatio.size();
+
+	for (auto &elem : mSurfaceVerRatio)
+		avgSurVerRatio += elem;
+	avgSurVerRatio /= mSurfaceVerRatio.size();
+
+	for (auto &elem : mNumTriangles)
+		avgNumTriangles += elem;
+	avgNumTriangles /= mNumTriangles.size();
+
+	double avgEs = 0.0f;
+	double avgSf = 0.0f;
+	double avgTri = 0.0f;
+	for (auto &elem : mStageTimeConsuming)
+	{
+		avgEs += elem.x;
+		avgSf += elem.y;
+		avgTri += elem.z;
+	}
+	avgEs /= mStageTimeConsuming.size();
+	avgSf /= mStageTimeConsuming.size();
+	avgTri /= mStageTimeConsuming.size();
+
+	std::string fileName = getAlgorithmType();
+	std::string path = mFileDirectory + fileName + ".config";
+	std::ofstream file;
+	file.open(path.c_str());
+	if (file)
+	{
+		std::cout << "Writing " << path << "...\n";
+		file << avgNumTriangles << std::endl;
+		file << avgSurParRatio << std::endl;
+		file << avgSurVerRatio << std::endl;
+		file << avgEs << std::endl;
+		file << avgEs + avgSf << std::endl;
+		file << avgTri << std::endl;
+		file << avgEs + avgSf + avgTri << std::endl;
+		file.close();
+	}
+	else
+		std::cerr << "Failed to save the file: " << path << std::endl;
+
 }

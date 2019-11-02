@@ -26,39 +26,39 @@ void ReconstructorGPUOursYu13::onFrameMove(unsigned int frameIndex)
 	ReconstructorGPUOurs::onFrameMove(frameIndex);
 
 	//! step1: extraction of surface and involve particles.
-	std::cout << "step1: extraction of surface and involve particles....\n";
+	//std::cout << "step1: extraction of surface and involve particles....\n";
 	extractionOfSurfaceAndInvolveParticles();
 
 	//! step2: estimation of surface vertices and surface particles.
-	std::cout << "step2: estimation of surface vertices....\n";
+	//std::cout << "step2: estimation of surface vertices....\n";
 	estimationOfSurfaceVertices();
 
 	//! step3: calculation of mean and smoothed positions of particles.
-	std::cout << "step3: calculation of mean and smoothed positions of particles....\n";
+	//std::cout << "step3: calculation of mean and smoothed positions of particles....\n";
 	calculationOfMeanAndSmoothedParticles();
 
 	//! step4: compactation of surface vertices and surface particles.
-	std::cout << "step4: compactation of surface particles....\n";
+	//std::cout << "step4: compactation of surface particles....\n";
 	compactationOfSurfaceVerticesAndParticles();
 
 	//! step5: calculation of transform matrices for each surface particle.
-	std::cout << "step5: calculation of transform matrices for each surface particle....\n";
+	//std::cout << "step5: calculation of transform matrices for each surface particle....\n";
 	calculationOfTransformMatricesForParticles();
 
 	//! step6: calculation of scalar field grid with compacted surface vertices and surface particles.
-	std::cout << "step6: calculation of scalar field grid....\n";
+	//std::cout << "step6: calculation of scalar field grid....\n";
 	computationOfScalarFieldGrid();
 
 	//! step7: detection of valid surface cubes.
-	std::cout << "step7: detection of valid surface cubes...\n";
+	//std::cout << "step7: detection of valid surface cubes...\n";
 	detectionOfValidSurfaceCubes();
 
 	//! step8: compactation of valid surface cubes.
-	std::cout << "step8: compactation of valid surface cubes...\n";
+	//std::cout << "step8: compactation of valid surface cubes...\n";
 	compactationOfValidSurafceCubes();
 
 	//! step9: generation of triangles for surface.
-	std::cout << "step9: generation of triangles for surface...\n";
+	//std::cout << "step9: generation of triangles for surface...\n";
 	generationOfSurfaceMeshUsingMC();
 
 }
@@ -189,11 +189,11 @@ void ReconstructorGPUOursYu13::compactationOfSurfaceVerticesAndParticles()
 		return;
 	}
 
-	std::cout << "surface vertices ratio: " << static_cast<double>(mNumSurfaceVertices) /
-		(mScalarFieldGridInfo.resolution.x * mScalarFieldGridInfo.resolution.y
-			* mScalarFieldGridInfo.resolution.z) << std::endl;
-	std::cout << "surface particles ratio: " << static_cast<double>(mNumSurfaceParticles)
-		/ mNumParticles << std::endl;
+	//std::cout << "surface vertices ratio: " << static_cast<double>(mNumSurfaceVertices) /
+	//	(mScalarFieldGridInfo.resolution.x * mScalarFieldGridInfo.resolution.y
+	//		* mScalarFieldGridInfo.resolution.z) << std::endl;
+	//std::cout << "surface particles ratio: " << static_cast<double>(mNumSurfaceParticles)
+	//	/ mNumParticles << std::endl;
 
 	//! memory allocation for surface particles and surface vertices.
 	CUDA_CREATE_GRID_1D_SET(mDeviceSurfaceVerticesIndexArray, mNumSurfaceVertices,
@@ -288,7 +288,8 @@ void ReconstructorGPUOursYu13::saveMiddleDataToVisFile(unsigned int frameIndex)
 	char basename[256];
 	snprintf(basename, sizeof(basename), mFilePattern.c_str(), frameIndex);
 	std::string path = mFileDirectory + std::string(basename) + ".vis";
-	std::ofstream file(path.c_str());
+	std::ofstream file;
+	file.open(path.c_str(), std::ios::out);
 	if (file)
 	{
 		std::cout << "Writing to " << path << "...\n";

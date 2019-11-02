@@ -33,29 +33,53 @@ void ReconstructorGPUAkinci12::onBeginFrame(unsigned int frameIndex)
 
 void ReconstructorGPUAkinci12::onFrameMove(unsigned int frameIndex)
 {
+	fVector3 tRecorder;
+	if (mSaveCfgFile)
+	{
+		mStageTimer->reset();
+	}
+
 	//! step1: extraction of surface particles.
-	std::cout << "step1, extraction of surface particles...\n";
+	//std::cout << "step1, extraction of surface particles...\n";
 	extractionOfSurfaceParticles();
 
 	//! step2: extraction of surface vertices.
-	std::cout << "step2, extraction of surface vertices...\n";
+	//std::cout << "step2, extraction of surface vertices...\n";
 	extractionOfSurfaceVertices();
 
+	if (mSaveCfgFile)
+	{
+		tRecorder.x = mStageTimer->durationInMilliseconds();
+		mStageTimer->reset();
+	}
+
 	//! step3: compactation of surface vertices.
-	std::cout << "step3, compactation of surface vertices...\n";
+	//std::cout << "step3, compactation of surface vertices...\n";
 	compactationOfSurfaceVertices();
 
 	//! step4: computation of scalar field grid.
-	std::cout << "step4, computation of scalar field grid...\n";
+	//std::cout << "step4, computation of scalar field grid...\n";
 	computationOfScalarFieldGrid();
 
 	//! step5: detection of valid surface cubes.
-	std::cout << "step5, detection of valid surface cubes...\n";
+	//std::cout << "step5, detection of valid surface cubes...\n";
 	detectionOfValidSurfaceCubes();
 
+	if (mSaveCfgFile)
+	{
+		tRecorder.y = mStageTimer->durationInMilliseconds();
+		mStageTimer->reset();
+	}
+
 	//! step6: generation of triangles for surface mesh.
-	std::cout << "step6, generation of triangles for surface mesh...\n";
+	//std::cout << "step6, generation of triangles for surface mesh...\n";
 	generationOfSurfaceMeshUsingMC();
+
+	if (mSaveCfgFile)
+	{
+		tRecorder.z = mStageTimer->durationInMilliseconds();
+		mStageTimeConsuming.push_back(tRecorder);
+	}
 
 }
 
@@ -76,7 +100,7 @@ void ReconstructorGPUAkinci12::onInitialization()
 	mSimParam.isoValue = -0.0001f;
 	//! search extent.
 	mSimParam.expandExtent = 4;
-	mSimParam.scSpGridResRatio = 4;
+	mSimParam.scSpGridResRatio = 2;
 	mSimParam.spatialCellSizeScale = 1.0;
 
 }
@@ -269,7 +293,8 @@ void ReconstructorGPUAkinci12::saveMiddleDataToVisFile(unsigned int frameIndex)
 	char basename[256];
 	snprintf(basename, sizeof(basename), mFilePattern.c_str(), frameIndex);
 	std::string path = mFileDirectory + std::string(basename) + ".vis";
-	std::ofstream file(path.c_str());
+	std::ofstream file;
+	file.open(path.c_str(), std::ios::out);
 	if (file)
 	{
 		std::cout << "Writing to " << path << "...\n";
@@ -450,4 +475,25 @@ void ReconstructorGPUAkinci12::saveFluidSurfaceObjToFile(unsigned int frameIndex
 	}
 	else
 		std::cerr << "Failed to save the file: " << path << std::endl;
+}
+
+void ReconstructorGPUAkinci12::getConfiguration(unsigned int frameIndex)
+{
+	//! surface particles.
+	std::vector<uint> surfaceParticlesFlagArray;
+	surfaceParticlesFlagArray.resize(mNumParticles);
+	checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesFlagArray.data()),
+		mDeviceSurfaceParticlesFlagGrid.grid, sizeof(uint) * mNumParticles, cudaMemcpyDeviceToHost));
+	uint numSurfaceParticles = 0;
+	for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+		if (surfaceParticlesFlagArray[i] == 1)
+			++numSurfaceParticles;
+
+	int numTriangles = mVertexArray.size() / 3;
+	double surfaceParRatio = static_cast<float>(numSurfaceParticles) / mDeviceParticlesArray.size;
+	double surfaceVerRatio = static_cast<float>(mDeviceSurfaceVerticesIndexArray.size) / mDeviceScalarFieldGrid.size;
+
+	mSurfaceParRatio.push_back(surfaceParRatio);
+	mSurfaceVerRatio.push_back(surfaceVerRatio);
+	mNumTriangles.push_back(numTriangles);
 }

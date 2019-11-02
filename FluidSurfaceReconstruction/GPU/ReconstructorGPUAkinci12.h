@@ -32,6 +32,7 @@ protected:
 
 	virtual void saveMiddleDataToVisFile(unsigned int frameIndex) override;
 	virtual void saveFluidSurfaceObjToFile(unsigned int frameIndex) override;
+	virtual void getConfiguration(unsigned int frameIndex) override;
 
 private:
 	

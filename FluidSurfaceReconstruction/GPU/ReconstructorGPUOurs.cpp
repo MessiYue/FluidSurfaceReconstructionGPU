@@ -99,6 +99,27 @@ void ReconstructorGPUOurs::saveFluidSurfaceObjToFile(unsigned int frameIndex)
 	
 }
 
+void ReconstructorGPUOurs::getConfiguration(unsigned int frameIndex)
+{
+	//! surface particles.
+	std::vector<uint> surfaceParticlesFlagArray;
+	surfaceParticlesFlagArray.resize(mNumParticles);
+	checkCudaErrors(cudaMemcpy(static_cast<void*>(surfaceParticlesFlagArray.data()),
+		mDeviceSurfaceParticlesFlagGrid.grid, sizeof(uint) * mNumParticles, cudaMemcpyDeviceToHost));
+	uint numSurfaceParticles = 0;
+	for (size_t i = 0; i < surfaceParticlesFlagArray.size(); ++i)
+		if (surfaceParticlesFlagArray[i] == 1)
+			++numSurfaceParticles;
+
+	int numTriangles = mDeviceVertexArray.size / 3;
+	double surfaceParRatio = static_cast<float>(numSurfaceParticles) / mDeviceParticlesArray.size;
+	double surfaceVerRatio = static_cast<float>(mDeviceSurfaceVerticesIndexArray.size) / mDeviceScalarFieldGrid.size;
+
+	mSurfaceParRatio.push_back(surfaceParRatio);
+	mSurfaceVerRatio.push_back(surfaceVerRatio);
+	mNumTriangles.push_back(numTriangles);
+}
+
 void ReconstructorGPUOurs::onBeginFrame(unsigned int frameIndex)
 {
 	CUDA_CREATE_GRID_3D(mDeviceIsSurfaceGrid, mScalarFieldGridInfo.resolution, uint);

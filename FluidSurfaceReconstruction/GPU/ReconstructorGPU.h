@@ -22,6 +22,7 @@ public:
 	virtual std::string getAlgorithmType() = 0;
 
 	void setOutputMeshFile(bool flag);
+	void setOutputConfigFile(bool flag);
 	void setOutputVisualizeFile(bool flag);
 
 	SimParam getSimulationParameters() const;
@@ -49,6 +50,7 @@ protected:
 	virtual void saveFluidSurfaceObjToFile(unsigned int frameIndex) = 0;
 	virtual void saveMiddleDataToVisFile(unsigned int frameIndex) = 0;
 
+	virtual void getConfiguration(unsigned int frameIndex) = 0;
 
 protected:
 
@@ -62,16 +64,24 @@ protected:
 	//! save the times record to file.
 	void saveTimeConsumingRecordToFile();
 
+	//! save the average configuration to file.
+	void saveConfigurationToFile();
 
 protected:
 
 	bool mSaveObjFile;										//! tag for saving mesh file(.obj).
 	bool mSaveVisFile;										//! tag for saving visualization file(.vis)
+	bool mSaveCfgFile;										//! tag for saving configuration file(.config)
 	Timer::ptr mTimer;										//! timer for recording.
+	Timer::ptr mStageTimer;									//! timer for each stage.
 	std::string mFilePattern;								//! particles' file name's pattern.
 	std::string mFileDirectory;								//! particles' file directory.
 	unsigned int mFrameFrom, mFrameTo;						//! frames in [from, to).
 	std::vector<double> mTimeConsuming;						//! times consumed for each frame.
+	std::vector<double> mSurfaceParRatio;					//! surface particles ratio for each frame.
+	std::vector<double> mSurfaceVerRatio;					//! surface vertices ratio for each frame.
+	std::vector<fVector3> mStageTimeConsuming;				//! each stage time consuming.
+	std::vector<int> mNumTriangles;							//! number of triangles for each frame.
 
 	SimParam mSimParam;										//! simulation parameters.
 	GridInfo mSpatialGridInfo;								//! spatial hashing grid information.

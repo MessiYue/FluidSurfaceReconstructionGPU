@@ -157,10 +157,13 @@ void estimateSurfaceVertices(
 			make_int3(isSurfaceGrid.resolution.x - 1, isSurfaceGrid.resolution.y - 1, isSurfaceGrid.resolution.z - 1));
 
 		// mark corresponding cell as surface cell (let it equals 1).
+#pragma unroll 3
 		for (uint zSc = minIndex3D.z; zSc <= maxIndex3D.z; zSc++)
 		{
+#pragma unroll 3
 			for (uint ySc = minIndex3D.y; ySc <= maxIndex3D.y; ySc++)
 			{
+#pragma unroll 3
 				for (uint xSc = minIndex3D.x; xSc <= maxIndex3D.x; xSc++)
 				{
 					uint3 curIndex3DInScalarGrid = make_uint3(xSc, ySc, zSc);
@@ -249,10 +252,13 @@ void updateScalarFieldValueZB05(
 
 	float wSum = 0.0f;
 	float3 posAvg = make_float3(0.0f, 0.0f, 0.0f);
+#pragma unrolll 3
 	for (int zSp = minIndex.z; zSp <= maxIndex.z; zSp++)
 	{
+#pragma unrolll 3
 		for (int ySp = minIndex.y; ySp <= maxIndex.y; ySp++)
 		{
+#pragma unrolll 3
 			for (int xSp = minIndex.x; xSp <= maxIndex.x; xSp++)
 			{
 				// 3D index of spatialGrid.
@@ -280,31 +286,6 @@ void updateScalarFieldValueZB05(
 		posAvg /= wSum;
 		ScalarFieldGrid.grid[vertexIndex1D].value = length(vPos - posAvg) - params.particleRadius;
 	}
-}
-
-//! func: call function updateVertexValue() to calculate scalar field just for surface cell.
-//! Actually it's not a good idea since all the branch would be executed despite it's surface cell or not.
-__global__ 
-void updateScalarGridValuesStd(
-	IsSurfaceGrid isSurfaceGrid,				// input, whether the corresponding grid point is in surface region or not.
-	ParticleIndexRangeGrid particleIndexRangeGrid,// input, particles' indices for each cell of spatial grid.	
-	ParticleArray particleArray,				// input, particles array.
-	ScalarFieldGrid ScalarFieldGrid,						// output, scalar field grid.
-	GridInfo spatialGridInfo,					// input, spatial hasing grid information.
-	GridInfo scalarGridInfo,					// input, scalar field grid information.
-	SimParam params
-	)					
-{
-	uint threadId = getThreadIdGlobal();
-	// boundary detection.
-	if (threadId >= ScalarFieldGrid.size)
-		return;
-	// if the grid point is not in surface region, just return.
-	if (isSurfaceGrid.grid[threadId] != 1)
-		return;
-	// call function updateVertexValue() to calculate scalar field value.
-	updateScalarFieldValueTC01(threadId, particleIndexRangeGrid, particleArray,
-		ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
 }
 
 //! func: compact the surface vertices into a continuous array.(discard those that are not in surface region)
@@ -338,8 +319,6 @@ void updateScalarGridValuesCompacted(
 	uint threadId = getThreadIdGlobal();
 	if (threadId >= svIndexArray.size || threadId >= numSurfaceVertices)
 		return;
-	//updateScalarFieldValueTC01(svIndexArray.grid[threadId], particleIndexRangeGrid, particleArray,
-	//	ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
 	updateScalarFieldValueZB05(svIndexArray.grid[threadId], particleIndexRangeGrid, particleArray,
 		ScalarFieldGrid, spatialGridInfo, scalarGridInfo, params);
 }
@@ -450,6 +429,7 @@ void generateTriangles(
 
 	float sign = (params.isoValue < 0.0f) ? (-1.0f) : (1.0f);
 
+#pragma unroll 12
 	for (int i = 0; i < 12; i++)
 	{
 		// 编号为i的边与等值面相交
@@ -467,9 +447,11 @@ void generateTriangles(
 			intersectNormals[i] = sign * normalize(lerp(cornerNors[start], cornerNors[end], lerpFac));
 		}
 	}
+
 	uint numTri = numVertices / 3;
 	for (uint i = 0; i < numTri; i++)
 	{
+#pragma unroll 3
 		for (uint j = 0; j < 3; j++)
 		{
 			int edgeIndex = tex1Dfetch(edgeIndexesOfTriangleTex, vertexFlag * 16 + i * 3 + j);
@@ -1057,30 +1039,6 @@ void launchEstimateSurfaceVertices(
 		densityGrid,
 		isSurfaceGrid,
 		scSearchExt,
-		params);
-	cudaDeviceSynchronize();
-}
-
-extern "C" 
-void launchUpdateScalarGridValues(
-	dim3 gridDim_,
-	dim3 blockDim_,
-	IsSurfaceGrid isSurfaceGrid,
-	ParticleIndexRangeGrid particleIndexRangeGrid,
-	ParticleArray particleArray,
-	ScalarFieldGrid ScalarFieldGrid,
-	GridInfo spatialGridInfo,
-	GridInfo scalarGridInfo,
-	SimParam params)
-{
-	// not good enough.
-	updateScalarGridValuesStd << <gridDim_, blockDim_ >> > (
-		isSurfaceGrid,
-		particleIndexRangeGrid,
-		particleArray,
-		ScalarFieldGrid,
-		spatialGridInfo,
-		scalarGridInfo,
 		params);
 	cudaDeviceSynchronize();
 }

@@ -23,33 +23,57 @@ void ReconstructorGPUOursZB05::onFrameMove(unsigned int frameIndex)
 {
 	ReconstructorGPUOurs::onFrameMove(frameIndex);
 
+	fVector3 tRecorder;
+	if (mSaveCfgFile)
+	{
+		mStageTimer->reset();
+	}
+
 	//! step1: extraction of surface particles.
-	std::cout << "step1: extraction of surface particles....\n";
+	//std::cout << "step1: extraction of surface particles....\n";
 	extractionOfSurfaceParticles();
 
 	//! step2: estimation of surface vertices.
-	std::cout << "step2: estimation of surface vertices....\n";
+	//std::cout << "step2: estimation of surface vertices....\n";
 	estimationOfSurfaceVertices();
 
 	//! step2: compactation of surface vertices.
-	std::cout << "step3: compactation of surface vertices...\n";
+	//std::cout << "step3: compactation of surface vertices...\n";
 	compactationOfSurfaceVertices();
 
+	if (mSaveCfgFile)
+	{
+		tRecorder.x = mStageTimer->durationInMilliseconds();
+		mStageTimer->reset();
+	}
+
 	//! step3: calculation of scalar field grid with compacted surface vertices.
-	std::cout << "step4: calculation of scalar field grid...\n";
+	//std::cout << "step4: calculation of scalar field grid...\n";
 	computationOfScalarFieldGrid();
 
+	if (mSaveCfgFile)
+	{
+		tRecorder.y = mStageTimer->durationInMilliseconds();
+		mStageTimer->reset();
+	}
+
 	//! step4: detection of valid surface cubes.
-	std::cout << "step5: detection of valid surface cubes...\n";
+	//std::cout << "step5: detection of valid surface cubes...\n";
 	detectionOfValidSurfaceCubes();
 
 	//! step5: compactation of valid surface cubes.
-	std::cout << "step6: compactation of valid surface cubes...\n";
+	//std::cout << "step6: compactation of valid surface cubes...\n";
 	compactationOfValidSurafceCubes();
 
 	//! step6: generation of triangles for surface.
-	std::cout << "step7: generation of triangles for surface...\n";
+	//std::cout << "step7: generation of triangles for surface...\n";
 	generationOfSurfaceMeshUsingMC();
+
+	if (mSaveCfgFile)
+	{
+		tRecorder.z = mStageTimer->durationInMilliseconds();
+		mStageTimeConsuming.push_back(tRecorder);
+	}
 
 }
 
@@ -67,7 +91,7 @@ void ReconstructorGPUOursZB05::onInitialization()
 	//! search extent.
 	mSimParam.expandExtent = 4;
 	//! 
-	mSimParam.scSpGridResRatio = 4;
+	mSimParam.scSpGridResRatio = 2;
 	//!
 	mSimParam.spatialCellSizeScale = 1.0;
 }
@@ -83,7 +107,8 @@ void ReconstructorGPUOursZB05::saveMiddleDataToVisFile(unsigned int frameIndex)
 	char basename[256];
 	snprintf(basename, sizeof(basename), mFilePattern.c_str(), frameIndex);
 	std::string path = mFileDirectory + std::string(basename) + ".vis";
-	std::ofstream file(path.c_str());
+	std::ofstream file;
+	file.open(path.c_str(), std::ios::out);
 	if (file)
 	{
 		std::cout << "Writing to " << path << "...\n";

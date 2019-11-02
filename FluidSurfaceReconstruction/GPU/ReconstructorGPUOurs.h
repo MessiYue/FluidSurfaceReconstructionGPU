@@ -29,6 +29,7 @@ protected:
 	virtual void onFinalization() override;
 
 	virtual void saveFluidSurfaceObjToFile(unsigned int frameIndex) override;
+	virtual void getConfiguration(unsigned int frameIndex) override;
 
 protected:
 
